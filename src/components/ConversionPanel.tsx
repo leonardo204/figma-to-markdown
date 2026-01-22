@@ -17,6 +17,11 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   const [result, setResult] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [tokenUsage, setTokenUsage] = useState<{
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  } | null>(null);
 
   // Figma 메시지 핸들러
   useEffect(() => {
@@ -63,10 +68,12 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
       });
 
       setResult(conversionResult.markdown);
+      setTokenUsage(conversionResult.usage || null);
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : '변환 중 오류가 발생했습니다');
       setResult('');
+      setTokenUsage(null);
     } finally {
       setIsConverting(false);
       setProgress('');
@@ -89,6 +96,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
     setResult('');
     setError('');
     setCopied(false);
+    setTokenUsage(null);
 
     // 프레임 데이터 요청
     parent.postMessage({ pluginMessage: { type: 'request-frame-data' } }, '*');
@@ -213,6 +221,29 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
           <div style={{ marginTop: '16px', fontWeight: 600, marginBottom: '8px' }}>
             결과 (선택 후 Cmd+C / Ctrl+C로 복사 가능)
           </div>
+
+          {/* 토큰 사용량 표시 */}
+          {tokenUsage && (
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                padding: '8px 12px',
+                background: '#f0f7ff',
+                borderRadius: '6px',
+                fontSize: '11px',
+                color: '#0066cc',
+                marginBottom: '8px',
+              }}
+            >
+              <span>입력: {tokenUsage.promptTokens.toLocaleString()} tokens</span>
+              <span>출력: {tokenUsage.completionTokens.toLocaleString()} tokens</span>
+              <span style={{ fontWeight: 600 }}>
+                총: {tokenUsage.totalTokens.toLocaleString()} tokens
+              </span>
+            </div>
+          )}
+
           <textarea
             className="result-textarea"
             value={result}
