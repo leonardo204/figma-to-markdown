@@ -6,7 +6,7 @@
   "ui": "build/ui.html",
   "capabilities": [],
   "enableProposedApi": false,
-  "editorType": ["figma"],
+  "editorType": ["figma", "dev"],
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [
