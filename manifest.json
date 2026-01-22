@@ -10,10 +10,10 @@
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [
-      "api.openai.com",
-      "api.anthropic.com",
-      "*.openai.azure.com",
-      "localhost"
+      "https://api.openai.com",
+      "https://api.anthropic.com",
+      "https://*.openai.azure.com",
+      "http://localhost"
     ],
     "reasoning": "LLM API 호출을 위해 필요합니다"
   },
