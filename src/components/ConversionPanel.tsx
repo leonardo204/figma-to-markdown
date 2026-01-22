@@ -179,25 +179,8 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
     setError('자동 복사가 지원되지 않습니다. 텍스트를 선택하여 복사해주세요.');
   };
 
-  // LLM 설정 필요 경고
-  if (!config || !isConfigValid(config)) {
-    return (
-      <div className="conversion-panel">
-        <div className="warning-box">
-          <div className="warning-box-icon">⚠️</div>
-          <div className="warning-box-title">LLM 설정 필요</div>
-          <div className="warning-box-text">
-            Markdown 변환을 위해 LLM 설정을 먼저 완료해주세요.
-          </div>
-        </div>
-        <button className="btn btn-primary" onClick={onSwitchToSettings} style={{ width: '100%' }}>
-          설정으로 이동
-        </button>
-      </div>
-    );
-  }
-
   const isConverting = status === 'converting' || status === 'retrying';
+  const isConfigured = config && isConfigValid(config);
 
   return (
     <div className="conversion-panel">
@@ -243,11 +226,30 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
           <div className="hint-text">LLM을 통해 변환된 문서를 번역합니다</div>
         </div>
 
+        {/* LLM 설정 필요 경고 */}
+        {!isConfigured && (
+          <div className="status status-warning" style={{ marginBottom: 12 }}>
+            <span className="status-icon">⚠️</span>
+            <div>
+              <div>LLM 설정 필요</div>
+              <div style={{ fontSize: 11, marginTop: 2 }}>
+                <span
+                  style={{ color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline' }}
+                  onClick={onSwitchToSettings}
+                >
+                  설정 탭
+                </span>
+                에서 API를 먼저 설정해주세요.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 변환 버튼 */}
         <button
           className="btn btn-primary"
           onClick={handleConvert}
-          disabled={isConverting || selectedFrames.length === 0}
+          disabled={isConverting || selectedFrames.length === 0 || !isConfigured}
           style={{ width: '100%' }}
         >
           {isConverting ? (
