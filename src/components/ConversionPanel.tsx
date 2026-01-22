@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { LLMConfig, TranslationLanguage, SelectedFrameInfo, ExtractedFrame, PluginMessage } from '../types';
+import type {
+  LLMConfig,
+  TranslationLanguage,
+  SelectedFrameInfo,
+  ExtractedFrame,
+  PluginMessage,
+  SequentialProgress,
+  FrameConversionResult,
+} from '../types';
 import { LANGUAGE_LABELS } from '../types';
 import { isConfigValid } from '../services/storage';
 import { convertToMarkdown } from '../services/markdown-converter';
@@ -25,6 +33,9 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
     completionTokens: number;
     totalTokens: number;
   } | null>(null);
+  const [frameProgress, setFrameProgress] = useState<SequentialProgress | null>(null);
+  const [failedFrames, setFailedFrames] = useState<Array<{ frameName: string; error: string }>>([]);
+  const [frameResults, setFrameResults] = useState<FrameConversionResult[]>([]);
 
   // Figma 메시지 핸들러
   useEffect(() => {
@@ -75,16 +86,28 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
           setRetryCountdown(remaining);
           setStatus(remaining > 0 ? 'retrying' : 'converting');
         },
+        onFrameProgress: (progress) => {
+          setFrameProgress(progress);
+          if (progress.phase === 'retrying' && progress.retryCountdown) {
+            setRetryCountdown(progress.retryCountdown);
+            setStatus('retrying');
+          } else {
+            setStatus('converting');
+          }
+        },
       });
 
       setResult(conversionResult.markdown);
       setTokenUsage(conversionResult.usage || null);
+      setFailedFrames(conversionResult.failedFrames || []);
+      setFrameResults(conversionResult.frameResults || []);
       setError('');
       setStatus('complete');
     } catch (err) {
       setError(err instanceof Error ? err.message : '변환 중 오류가 발생했습니다');
       setResult('');
       setTokenUsage(null);
+      setFrameProgress(null);
       setStatus('error');
     }
   }, [config, translateTo]);
@@ -107,6 +130,9 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
     setCopied(false);
     setTokenUsage(null);
     setRetryCountdown(0);
+    setFrameProgress(null);
+    setFailedFrames([]);
+    setFrameResults([]);
 
     // 프레임 데이터 요청
     parent.postMessage({ pluginMessage: { type: 'request-frame-data' } }, '*');
@@ -249,10 +275,34 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
       {status === 'converting' && (
         <div className="progress-container">
           <div className="progress-header">
-            <span className="progress-label">{progress}</span>
+            <span className="progress-label">
+              {frameProgress
+                ? `${frameProgress.currentFrame}/${frameProgress.totalFrames} ${
+                    frameProgress.phase === 'merging'
+                      ? '결과 병합 중'
+                      : frameProgress.phase === 'translating'
+                      ? '번역 중'
+                      : `변환 중: ${frameProgress.frameName}`
+                  }`
+                : progress}
+            </span>
+            {frameProgress && frameProgress.totalFrames > 1 && (
+              <span className="progress-percent">
+                {Math.round((frameProgress.currentFrame / frameProgress.totalFrames) * 100)}%
+              </span>
+            )}
           </div>
           <div className="progress-bar">
-            <div className="progress-fill indeterminate"></div>
+            {frameProgress && frameProgress.totalFrames > 1 ? (
+              <div
+                className="progress-fill"
+                style={{
+                  width: `${(frameProgress.currentFrame / frameProgress.totalFrames) * 100}%`,
+                }}
+              ></div>
+            ) : (
+              <div className="progress-fill indeterminate"></div>
+            )}
           </div>
         </div>
       )}
@@ -262,6 +312,23 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
         <div className="status status-error">
           <span className="status-icon">❌</span>
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* 실패한 프레임 경고 */}
+      {failedFrames.length > 0 && status === 'complete' && (
+        <div className="status status-warning">
+          <span className="status-icon">⚠️</span>
+          <div>
+            <div>{failedFrames.length}개 프레임 변환 실패</div>
+            <div className="failed-frames-list">
+              {failedFrames.map((f, i) => (
+                <div key={i} className="failed-frame-item">
+                  • {f.frameName}: {f.error}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -284,6 +351,23 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
                 <div className="token-value">{tokenUsage.totalTokens.toLocaleString()}</div>
               </div>
             </div>
+          )}
+
+          {/* 프레임별 토큰 상세 (접이식) */}
+          {frameResults.length > 1 && (
+            <details className="token-details">
+              <summary>프레임별 토큰 상세 ({frameResults.length}개 프레임)</summary>
+              <div className="token-details-list">
+                {frameResults.map((r, i) => (
+                  <div key={i} className="token-details-item">
+                    <span className="token-details-name">{r.frameName}</span>
+                    <span className="token-details-value">
+                      {r.usage?.totalTokens?.toLocaleString() || '-'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
 
           <div className="section-title">

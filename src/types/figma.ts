@@ -32,7 +32,7 @@ export interface ExtractedFrameNode {
     width: number;
     height: number;
   };
-  layoutMode?: 'HORIZONTAL' | 'VERTICAL' | 'NONE';
+  layoutMode?: 'HORIZONTAL' | 'VERTICAL' | 'GRID' | 'NONE';
   children: ExtractedNode[];
 }
 

@@ -546,6 +546,81 @@ function generateHtml() {
       color: var(--color-gray-400);
       margin-top: 4px;
     }
+
+    /* 진행률 퍼센트 */
+    .progress-percent {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-primary);
+    }
+
+    /* 실패 프레임 목록 */
+    .failed-frames-list {
+      margin-top: 8px;
+      font-size: 11px;
+    }
+
+    .failed-frame-item {
+      margin-top: 4px;
+      opacity: 0.9;
+    }
+
+    /* 토큰 상세 (접이식) */
+    .token-details {
+      margin-bottom: 12px;
+      border: 1px solid var(--color-gray-200);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .token-details summary {
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-gray-600);
+      background: var(--color-gray-50);
+      cursor: pointer;
+      user-select: none;
+      transition: var(--transition);
+    }
+
+    .token-details summary:hover {
+      background: var(--color-gray-100);
+    }
+
+    .token-details[open] summary {
+      border-bottom: 1px solid var(--color-gray-200);
+    }
+
+    .token-details-list {
+      padding: 8px 0;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .token-details-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 12px;
+      font-size: 11px;
+    }
+
+    .token-details-item:hover {
+      background: var(--color-gray-50);
+    }
+
+    .token-details-name {
+      color: var(--color-gray-600);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 70%;
+    }
+
+    .token-details-value {
+      color: var(--color-primary);
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>

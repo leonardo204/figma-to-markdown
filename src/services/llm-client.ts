@@ -5,6 +5,9 @@ import type {
   ConnectionTestResult,
 } from '../types/llm';
 
+// ConnectionTestResult를 re-export
+export type { ConnectionTestResult } from '../types/llm';
+
 // 공통 요청 인터페이스
 interface RequestOptions {
   messages: LLMMessage[];

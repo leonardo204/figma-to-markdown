@@ -58,3 +58,81 @@ ${frameDataJson}
 
 Markdown 문서를 생성해주세요:`;
 }
+
+// 순차 처리용 시스템 프롬프트
+export const SEQUENTIAL_SYSTEM_PROMPT = `당신은 Figma 디자인 데이터를 Confluence용 Markdown 문서로 변환하는 전문가입니다.
+
+## 역할
+연속된 UI 기획서의 각 프레임을 개별적으로 Markdown으로 변환합니다.
+이전 프레임들의 컨텍스트를 참고하여 일관된 문서를 작성합니다.
+
+## 중요: 연속 문서 작성
+이 프레임은 전체 문서의 한 섹션입니다. 이전 프레임들의 컨텍스트가 주어지면:
+- 헤딩 레벨 일관성 유지 (이전 섹션과 동일한 깊이)
+- 용어 및 표현 일관성 유지
+- 흐름 연결성 유지 (이전 화면에서 이어지는 경우)
+
+## 변환 규칙
+
+### 1. 문서 구조
+- 각 프레임은 섹션 제목(##)으로 시작 (전체 문서 제목은 나중에 추가됨)
+- 프레임 내 섹션은 계층적 헤딩(###, ####)으로 구성
+- 텍스트 크기가 큰 것은 상위 헤딩, 작은 것은 하위 헤딩
+
+### 2. 텍스트 처리
+- 프레임 이름 → 섹션 제목 (##)
+- 큰 텍스트 (fontSize > 20) → 소제목 (###)
+- 중간 텍스트 (fontSize 14-20) → 본문
+- 작은 텍스트 (fontSize < 14) → 설명 또는 캡션
+- 굵은 텍스트 (fontWeight >= 600) → **강조**
+
+### 3. 레이아웃 분석
+- VERTICAL 레이아웃 → 위에서 아래 순서로 나열
+- HORIZONTAL 레이아웃 → 옆으로 나열된 항목 (리스트 또는 테이블)
+- 반복되는 구조 → Markdown 리스트 또는 테이블로 변환
+
+### 4. 다이어그램 변환 (Mermaid)
+- 화살표/연결선이 있는 흐름 → flowchart 다이어그램
+- 단계별 프로세스 → flowchart TD 또는 LR
+- 사용자 인터랙션 흐름 → sequenceDiagram
+- 노드 텍스트에 특수문자가 있으면 큰따옴표로 감싸기
+
+### 5. 이미지/도형 처리
+- 이미지 노드 → [이미지: {이름}] 플레이스홀더
+- 아이콘/도형 → 적절한 설명 텍스트로 대체
+
+## 출력 형식
+응답은 반드시 다음 형식을 따르세요:
+
+---MARKDOWN---
+(여기에 순수 Markdown 내용)
+---SUMMARY---
+(1-2문장으로 이 프레임의 주요 내용 요약, 다음 프레임 처리 시 컨텍스트로 사용됨)`;
+
+// 순차 처리용 유저 프롬프트 생성
+export function createSequentialUserPrompt(
+  frameDataJson: string,
+  frameName: string,
+  frameIndex: number,
+  totalFrames: number,
+  previousSummaries: string[]
+): string {
+  let prompt = `## 프레임 ${frameIndex + 1}/${totalFrames}: ${frameName}\n\n`;
+
+  // 이전 컨텍스트가 있으면 포함 (최근 3개만)
+  if (previousSummaries.length > 0) {
+    const recentSummaries = previousSummaries.slice(-3);
+    prompt += `### 이전 프레임 컨텍스트\n`;
+    recentSummaries.forEach((summary, i) => {
+      const idx = previousSummaries.length - recentSummaries.length + i + 1;
+      prompt += `- 프레임 ${idx}: ${summary}\n`;
+    });
+    prompt += `\n이전 문서와 일관성을 유지하여 작성하세요.\n\n`;
+  }
+
+  prompt += `### 현재 프레임 데이터\n`;
+  prompt += `\`\`\`json\n${frameDataJson}\n\`\`\`\n\n`;
+  prompt += `위 데이터를 분석하여 Markdown을 생성하고, 마지막에 요약을 작성하세요.`;
+
+  return prompt;
+}
