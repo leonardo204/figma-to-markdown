@@ -1,0 +1,31 @@
+{
+  "name": "Figma to Markdown",
+  "id": "figma-to-markdown-plugin",
+  "api": "1.0.0",
+  "main": "build/code.js",
+  "ui": "build/ui.html",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": [
+      "api.openai.com",
+      "api.anthropic.com",
+      "*.openai.azure.com",
+      "localhost",
+      "127.0.0.1"
+    ],
+    "reasoning": "LLM API 호출을 위해 필요합니다"
+  },
+  "menu": [
+    {
+      "name": "Convert to Markdown",
+      "command": "convert"
+    },
+    {
+      "name": "Settings",
+      "command": "settings"
+    }
+  ]
+}
