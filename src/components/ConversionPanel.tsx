@@ -197,12 +197,14 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
               Figma에서 프레임을 선택해주세요
             </div>
           ) : (
-            selectedFrames.map((frame) => (
-              <div key={frame.id} className="frame-item">
-                <span className="frame-item-icon">▢</span>
-                {frame.name}
-              </div>
-            ))
+            <div className="frame-list-items">
+              {selectedFrames.map((frame) => (
+                <div key={frame.id} className="frame-item">
+                  <span className="frame-item-icon">▢</span>
+                  {frame.name}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

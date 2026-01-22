@@ -313,6 +313,11 @@ function generateHtml() {
       gap: 6px;
     }
 
+    .frame-list-items {
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
     .frame-list-empty {
       color: var(--color-gray-400);
       font-size: 12px;
