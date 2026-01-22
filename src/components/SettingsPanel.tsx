@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { LLMConfig, LLMProvider } from '../types/llm';
-import { PROVIDER_LABELS, DEFAULT_MODELS } from '../types/llm';
+import { PROVIDER_LABELS } from '../types/llm';
 import { createDefaultConfig, saveConfig, isConfigValid } from '../services/storage';
 import { testConnection, type ConnectionTestResult } from '../services/llm-client';
 
@@ -80,15 +80,16 @@ export function SettingsPanel({ config, onConfigChange }: SettingsPanelProps) {
                 value={localConfig.apiKey}
                 onChange={(e) => handleFieldChange('apiKey', e.target.value)}
               />
+              <div className="hint-text">OpenAI Platform에서 발급받은 API Key</div>
             </div>
             <div className="form-group">
-              <label className="form-label">Model Name</label>
+              <label className="form-label">Model</label>
               <select
                 className="form-select"
                 value={localConfig.modelName}
                 onChange={(e) => handleFieldChange('modelName', e.target.value)}
               >
-                <option value="gpt-4o">gpt-4o</option>
+                <option value="gpt-4o">gpt-4o (추천)</option>
                 <option value="gpt-4o-mini">gpt-4o-mini</option>
                 <option value="gpt-4-turbo">gpt-4-turbo</option>
                 <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
@@ -109,18 +110,19 @@ export function SettingsPanel({ config, onConfigChange }: SettingsPanelProps) {
                 value={localConfig.apiKey}
                 onChange={(e) => handleFieldChange('apiKey', e.target.value)}
               />
+              <div className="hint-text">Anthropic Console에서 발급받은 API Key</div>
             </div>
             <div className="form-group">
-              <label className="form-label">Model Name</label>
+              <label className="form-label">Model</label>
               <select
                 className="form-select"
                 value={localConfig.modelName}
                 onChange={(e) => handleFieldChange('modelName', e.target.value)}
               >
-                <option value="claude-sonnet-4-20250514">claude-sonnet-4-20250514</option>
-                <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet-20241022</option>
-                <option value="claude-3-opus-20240229">claude-3-opus-20240229</option>
-                <option value="claude-3-haiku-20240307">claude-3-haiku-20240307</option>
+                <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (추천)</option>
+                <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+                <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
               </select>
             </div>
           </>
@@ -138,6 +140,7 @@ export function SettingsPanel({ config, onConfigChange }: SettingsPanelProps) {
                 value={localConfig.endpoint}
                 onChange={(e) => handleFieldChange('endpoint', e.target.value)}
               />
+              <div className="hint-text">Azure OpenAI 리소스 엔드포인트</div>
             </div>
             <div className="form-group">
               <label className="form-label">API Key *</label>
@@ -154,10 +157,11 @@ export function SettingsPanel({ config, onConfigChange }: SettingsPanelProps) {
               <input
                 type="text"
                 className="form-input"
-                placeholder="gpt-4"
+                placeholder="gpt-4o"
                 value={localConfig.deploymentName}
                 onChange={(e) => handleFieldChange('deploymentName', e.target.value)}
               />
+              <div className="hint-text">배포된 모델의 이름</div>
             </div>
             <div className="form-group">
               <label className="form-label">API Version</label>
@@ -184,6 +188,7 @@ export function SettingsPanel({ config, onConfigChange }: SettingsPanelProps) {
                 value={localConfig.endpoint}
                 onChange={(e) => handleFieldChange('endpoint', e.target.value)}
               />
+              <div className="hint-text">로컬 Ollama 서버 주소</div>
             </div>
             <div className="form-group">
               <label className="form-label">Model Name *</label>
@@ -194,6 +199,7 @@ export function SettingsPanel({ config, onConfigChange }: SettingsPanelProps) {
                 value={localConfig.modelName}
                 onChange={(e) => handleFieldChange('modelName', e.target.value)}
               />
+              <div className="hint-text">ollama list로 설치된 모델 확인</div>
             </div>
           </>
         );
@@ -202,45 +208,70 @@ export function SettingsPanel({ config, onConfigChange }: SettingsPanelProps) {
 
   return (
     <div className="settings-panel">
-      <div className="form-group">
-        <label className="form-label">LLM Provider</label>
-        <select
-          className="form-select"
-          value={localConfig.provider}
-          onChange={(e) => handleProviderChange(e.target.value as LLMProvider)}
-        >
-          {(Object.keys(PROVIDER_LABELS) as LLMProvider[]).map((provider) => (
-            <option key={provider} value={provider}>
-              {PROVIDER_LABELS[provider]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {renderProviderFields()}
-
-      {testResult && (
-        <div className={`status ${testResult.success ? 'status-success' : 'status-error'}`}>
-          {testResult.success ? '✅' : '❌'} {testResult.message}
-          {testResult.modelInfo && <div style={{ marginTop: '4px' }}>{testResult.modelInfo}</div>}
+      <div className="card">
+        <div className="card-header">
+          <div className="card-title">
+            <span>🤖</span>
+            LLM 설정
+          </div>
         </div>
-      )}
 
-      <div className="btn-group">
-        <button
-          className="btn btn-secondary"
-          onClick={handleTestConnection}
-          disabled={isTesting || !isConfigValid(localConfig)}
-        >
-          {isTesting ? '테스트 중...' : '연결 테스트'}
-        </button>
-        <button
-          className="btn btn-primary"
-          onClick={handleSave}
-          disabled={!isConfigValid(localConfig)}
-        >
-          저장
-        </button>
+        <div className="form-group">
+          <label className="form-label">제공업체</label>
+          <select
+            className="form-select"
+            value={localConfig.provider}
+            onChange={(e) => handleProviderChange(e.target.value as LLMProvider)}
+          >
+            {(Object.keys(PROVIDER_LABELS) as LLMProvider[]).map((provider) => (
+              <option key={provider} value={provider}>
+                {PROVIDER_LABELS[provider]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {renderProviderFields()}
+
+        {testResult && (
+          <div className={`status ${testResult.success ? 'status-success' : 'status-error'}`}>
+            <span className="status-icon">{testResult.success ? '✅' : '❌'}</span>
+            <div>
+              <div>{testResult.message}</div>
+              {testResult.modelInfo && (
+                <div style={{ marginTop: 4, opacity: 0.8, fontSize: 11 }}>
+                  {testResult.modelInfo}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="btn-group">
+          <button
+            className="btn btn-secondary"
+            onClick={handleTestConnection}
+            disabled={isTesting || !isConfigValid(localConfig)}
+            style={{ flex: 1 }}
+          >
+            {isTesting ? (
+              <>
+                <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }}></span>
+                테스트 중...
+              </>
+            ) : (
+              <>🔗 연결 테스트</>
+            )}
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={!isConfigValid(localConfig)}
+            style={{ flex: 1 }}
+          >
+            💾 저장
+          </button>
+        </div>
       </div>
     </div>
   );

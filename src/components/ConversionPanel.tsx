@@ -9,11 +9,14 @@ interface ConversionPanelProps {
   onSwitchToSettings: () => void;
 }
 
+type ConversionStatus = 'idle' | 'converting' | 'retrying' | 'complete' | 'error';
+
 export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelProps) {
   const [selectedFrames, setSelectedFrames] = useState<SelectedFrameInfo[]>([]);
   const [translateTo, setTranslateTo] = useState<TranslationLanguage>('none');
-  const [isConverting, setIsConverting] = useState(false);
+  const [status, setStatus] = useState<ConversionStatus>('idle');
   const [progress, setProgress] = useState<string>('');
+  const [retryCountdown, setRetryCountdown] = useState<number>(0);
   const [result, setResult] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -42,7 +45,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
           break;
         case 'error':
           setError(message.message);
-          setIsConverting(false);
+          setStatus('error');
           break;
       }
     };
@@ -55,7 +58,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   const handleFrameData = useCallback(async (frames: ExtractedFrame[]) => {
     if (!config || !isConfigValid(config)) {
       setError('LLM 설정이 필요합니다');
-      setIsConverting(false);
+      setStatus('error');
       return;
     }
 
@@ -64,19 +67,25 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
         config,
         frames,
         translateTo,
-        onProgress: setProgress,
+        onProgress: (msg) => {
+          setProgress(msg);
+          setStatus('converting');
+        },
+        onRetryWait: (remaining) => {
+          setRetryCountdown(remaining);
+          setStatus(remaining > 0 ? 'retrying' : 'converting');
+        },
       });
 
       setResult(conversionResult.markdown);
       setTokenUsage(conversionResult.usage || null);
       setError('');
+      setStatus('complete');
     } catch (err) {
       setError(err instanceof Error ? err.message : '변환 중 오류가 발생했습니다');
       setResult('');
       setTokenUsage(null);
-    } finally {
-      setIsConverting(false);
-      setProgress('');
+      setStatus('error');
     }
   }, [config, translateTo]);
 
@@ -92,11 +101,12 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
       return;
     }
 
-    setIsConverting(true);
+    setStatus('converting');
     setResult('');
     setError('');
     setCopied(false);
     setTokenUsage(null);
+    setRetryCountdown(0);
 
     // 프레임 데이터 요청
     parent.postMessage({ pluginMessage: { type: 'request-frame-data' } }, '*');
@@ -106,7 +116,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   const handleCopy = async () => {
     if (!result) return;
 
-    // 방법 1: navigator.clipboard (대부분의 환경에서 차단됨)
+    // 방법 1: navigator.clipboard
     try {
       await navigator.clipboard.writeText(result);
       setCopied(true);
@@ -114,10 +124,10 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
       setTimeout(() => setCopied(false), 2000);
       return;
     } catch {
-      // fallback으로 진행
+      // fallback
     }
 
-    // 방법 2: execCommand (구식이지만 일부 환경에서 동작)
+    // 방법 2: execCommand
     try {
       const textarea = document.createElement('textarea');
       textarea.value = result;
@@ -137,11 +147,10 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
         return;
       }
     } catch {
-      // fallback으로 진행
+      // fallback
     }
 
-    // 방법 3: 사용자에게 수동 복사 안내
-    setError('자동 복사가 지원되지 않습니다. 아래 텍스트를 직접 선택하여 복사해주세요 (Cmd+C / Ctrl+C)');
+    setError('자동 복사가 지원되지 않습니다. 텍스트를 선택하여 복사해주세요.');
   };
 
   // LLM 설정 필요 경고
@@ -149,127 +158,157 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
     return (
       <div className="conversion-panel">
         <div className="warning-box">
+          <div className="warning-box-icon">⚠️</div>
           <div className="warning-box-title">LLM 설정 필요</div>
           <div className="warning-box-text">
             Markdown 변환을 위해 LLM 설정을 먼저 완료해주세요.
           </div>
         </div>
-        <button className="btn btn-primary" onClick={onSwitchToSettings}>
+        <button className="btn btn-primary" onClick={onSwitchToSettings} style={{ width: '100%' }}>
           설정으로 이동
         </button>
       </div>
     );
   }
 
+  const isConverting = status === 'converting' || status === 'retrying';
+
   return (
     <div className="conversion-panel">
-      {/* 선택된 프레임 목록 */}
-      <div className="frame-list">
-        <div className="frame-list-title">
-          선택된 프레임 ({selectedFrames.length}개)
-        </div>
-        {selectedFrames.length === 0 ? (
-          <div className="frame-item" style={{ color: '#999' }}>
-            Figma에서 프레임을 선택해주세요
+      {/* 선택된 프레임 카드 */}
+      <div className="card">
+        <div className="frame-list">
+          <div className="frame-list-title">
+            <span>📐</span>
+            선택된 프레임
+            <span className="card-badge">{selectedFrames.length}개</span>
           </div>
-        ) : (
-          selectedFrames.map((frame) => (
-            <div key={frame.id} className="frame-item">
-              {frame.name}
+          {selectedFrames.length === 0 ? (
+            <div className="frame-list-empty">
+              Figma에서 프레임을 선택해주세요
             </div>
-          ))
-        )}
+          ) : (
+            selectedFrames.map((frame) => (
+              <div key={frame.id} className="frame-item">
+                <span className="frame-item-icon">▢</span>
+                {frame.name}
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
-      {/* 번역 옵션 */}
-      <div className="form-group">
-        <label className="form-label">번역</label>
-        <select
-          className="form-select"
-          value={translateTo}
-          onChange={(e) => setTranslateTo(e.target.value as TranslationLanguage)}
-          disabled={isConverting}
+      {/* 옵션 카드 */}
+      <div className="card">
+        <div className="form-group">
+          <label className="form-label">번역 언어</label>
+          <select
+            className="form-select"
+            value={translateTo}
+            onChange={(e) => setTranslateTo(e.target.value as TranslationLanguage)}
+            disabled={isConverting}
+          >
+            {(Object.keys(LANGUAGE_LABELS) as TranslationLanguage[]).map((lang) => (
+              <option key={lang} value={lang}>
+                {LANGUAGE_LABELS[lang]}
+              </option>
+            ))}
+          </select>
+          <div className="hint-text">LLM을 통해 변환된 문서를 번역합니다</div>
+        </div>
+
+        {/* 변환 버튼 */}
+        <button
+          className="btn btn-primary"
+          onClick={handleConvert}
+          disabled={isConverting || selectedFrames.length === 0}
+          style={{ width: '100%' }}
         >
-          {(Object.keys(LANGUAGE_LABELS) as TranslationLanguage[]).map((lang) => (
-            <option key={lang} value={lang}>
-              {LANGUAGE_LABELS[lang]}
-            </option>
-          ))}
-        </select>
+          {isConverting ? (
+            <>
+              <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }}></span>
+              {progress || '변환 중...'}
+            </>
+          ) : (
+            <>✨ Markdown으로 변환</>
+          )}
+        </button>
       </div>
 
-      {/* 변환 버튼 */}
-      <button
-        className="btn btn-primary"
-        onClick={handleConvert}
-        disabled={isConverting || selectedFrames.length === 0}
-        style={{ width: '100%', marginTop: '8px' }}
-      >
-        {isConverting ? progress || '변환 중...' : 'Markdown으로 변환'}
-      </button>
-
-      {/* 에러 메시지 */}
-      {error && (
-        <div className="status status-error" style={{ marginTop: '12px' }}>
-          {error}
+      {/* Rate Limit 대기 상태 */}
+      {status === 'retrying' && retryCountdown > 0 && (
+        <div className="retry-container">
+          <div className="retry-icon">⏳</div>
+          <div className="retry-title">API 요청 제한 대기 중</div>
+          <div className="retry-countdown">{retryCountdown}초</div>
+          <div className="retry-text">Rate limit에 도달했습니다. 자동으로 재시도합니다.</div>
         </div>
       )}
 
-      {/* 결과 미리보기 */}
-      {result && (
-        <>
-          <div style={{ marginTop: '16px', fontWeight: 600, marginBottom: '8px' }}>
-            결과 (선택 후 Cmd+C / Ctrl+C로 복사 가능)
+      {/* Progress Bar (변환 중) */}
+      {status === 'converting' && (
+        <div className="progress-container">
+          <div className="progress-header">
+            <span className="progress-label">{progress}</span>
           </div>
+          <div className="progress-bar">
+            <div className="progress-fill indeterminate"></div>
+          </div>
+        </div>
+      )}
 
-          {/* 토큰 사용량 표시 */}
+      {/* 에러 메시지 */}
+      {error && (
+        <div className="status status-error">
+          <span className="status-icon">❌</span>
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* 결과 */}
+      {result && status === 'complete' && (
+        <div className="card">
+          {/* 토큰 사용량 */}
           {tokenUsage && (
-            <div
-              style={{
-                display: 'flex',
-                gap: '12px',
-                padding: '8px 12px',
-                background: '#f0f7ff',
-                borderRadius: '6px',
-                fontSize: '11px',
-                color: '#0066cc',
-                marginBottom: '8px',
-              }}
-            >
-              <span>입력: {tokenUsage.promptTokens.toLocaleString()} tokens</span>
-              <span>출력: {tokenUsage.completionTokens.toLocaleString()} tokens</span>
-              <span style={{ fontWeight: 600 }}>
-                총: {tokenUsage.totalTokens.toLocaleString()} tokens
-              </span>
+            <div className="token-usage">
+              <div className="token-item">
+                <div className="token-label">입력</div>
+                <div className="token-value">{tokenUsage.promptTokens.toLocaleString()}</div>
+              </div>
+              <div className="token-item">
+                <div className="token-label">출력</div>
+                <div className="token-value">{tokenUsage.completionTokens.toLocaleString()}</div>
+              </div>
+              <div className="token-item">
+                <div className="token-label">총 토큰</div>
+                <div className="token-value">{tokenUsage.totalTokens.toLocaleString()}</div>
+              </div>
             </div>
           )}
+
+          <div className="section-title">
+            <span>📄</span>
+            변환 결과
+          </div>
+          <div className="hint-text" style={{ marginBottom: 10 }}>
+            클릭하면 전체 선택됩니다
+          </div>
 
           <textarea
             className="result-textarea"
             value={result}
             readOnly
             onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-            style={{
-              width: '100%',
-              height: '250px',
-              padding: '12px',
-              border: '1px solid #e5e5e5',
-              borderRadius: '6px',
-              fontFamily: "'SF Mono', Monaco, 'Courier New', monospace",
-              fontSize: '11px',
-              lineHeight: '1.5',
-              resize: 'vertical',
-              background: '#f9f9f9',
-            }}
           />
+
           <button
-            className="btn btn-primary"
+            className={`btn ${copied ? 'btn-success' : 'btn-primary'}`}
             onClick={handleCopy}
-            style={{ width: '100%', marginTop: '12px' }}
+            style={{ width: '100%', marginTop: 12 }}
           >
-            {copied ? '✓ 복사됨!' : '클립보드에 복사'}
+            {copied ? '✓ 복사 완료!' : '📋 클립보드에 복사'}
           </button>
-        </>
+        </div>
       )}
     </div>
   );

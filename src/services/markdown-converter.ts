@@ -12,6 +12,7 @@ export interface ConversionOptions {
   frames: ExtractedFrame[];
   translateTo: TranslationLanguage;
   onProgress?: (status: string) => void;
+  onRetryWait?: (remainingSeconds: number) => void;
 }
 
 export interface ConversionResult {
@@ -46,7 +47,7 @@ function stripCodeBlockWrapper(text: string): string {
 export async function convertToMarkdown(
   options: ConversionOptions
 ): Promise<ConversionResult> {
-  const { config, frames, translateTo, onProgress } = options;
+  const { config, frames, translateTo, onProgress, onRetryWait } = options;
 
   // 1단계: 프레임 데이터를 JSON으로 직렬화
   onProgress?.('프레임 데이터 분석 중...');
@@ -61,6 +62,7 @@ export async function convertToMarkdown(
     ],
     maxTokens: 8192,
     temperature: 0.3,
+    onRetryWait,
   });
 
   let markdown = stripCodeBlockWrapper(markdownResponse.content);
@@ -76,6 +78,7 @@ export async function convertToMarkdown(
       ],
       maxTokens: 8192,
       temperature: 0.3,
+      onRetryWait,
     });
 
     markdown = stripCodeBlockWrapper(translationResponse.content);

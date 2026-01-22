@@ -10,6 +10,49 @@ interface RequestOptions {
   messages: LLMMessage[];
   maxTokens?: number;
   temperature?: number;
+  onRetryWait?: (remainingSeconds: number) => void;
+}
+
+// Rate Limit 에러 감지
+interface RateLimitError extends Error {
+  isRateLimit: true;
+  retryAfter: number;
+}
+
+function isRateLimitError(error: unknown): error is RateLimitError {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes('rate limit') ||
+      message.includes('too many requests') ||
+      message.includes('429') ||
+      message.includes('quota') ||
+      message.includes('exceeded')
+    );
+  }
+  return false;
+}
+
+function parseRetryAfter(errorMessage: string): number {
+  // "retry after X seconds" 패턴에서 숫자 추출
+  const match = errorMessage.match(/retry\s*after\s*(\d+)\s*seconds?/i);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+  // 기본 60초
+  return 60;
+}
+
+// 대기 함수 (카운트다운 콜백 지원)
+async function waitWithCountdown(
+  seconds: number,
+  onTick?: (remaining: number) => void
+): Promise<void> {
+  for (let remaining = seconds; remaining > 0; remaining--) {
+    onTick?.(remaining);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  onTick?.(0);
 }
 
 // OpenAI API 호출
@@ -176,8 +219,8 @@ async function callOllama(
   };
 }
 
-// 통합 LLM 호출 함수
-export async function callLLM(
+// 내부 LLM 호출 (재시도 없음)
+async function callLLMInternal(
   config: LLMConfig,
   options: RequestOptions
 ): Promise<LLMResponse> {
@@ -195,12 +238,41 @@ export async function callLLM(
   }
 }
 
+// 통합 LLM 호출 함수 (자동 재시도 포함)
+export async function callLLM(
+  config: LLMConfig,
+  options: RequestOptions,
+  maxRetries: number = 3
+): Promise<LLMResponse> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await callLLMInternal(config, options);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Rate limit 에러인 경우 대기 후 재시도
+      if (isRateLimitError(error) && attempt < maxRetries - 1) {
+        const retryAfter = parseRetryAfter(lastError.message);
+        await waitWithCountdown(retryAfter, options.onRetryWait);
+        continue;
+      }
+
+      // 다른 에러는 즉시 throw
+      throw lastError;
+    }
+  }
+
+  throw lastError || new Error('알 수 없는 오류가 발생했습니다');
+}
+
 // 연결 테스트
 export async function testConnection(
   config: LLMConfig
 ): Promise<ConnectionTestResult> {
   try {
-    const response = await callLLM(config, {
+    await callLLM(config, {
       messages: [
         {
           role: 'user',
@@ -208,7 +280,7 @@ export async function testConnection(
         },
       ],
       maxTokens: 50,
-    });
+    }, 1); // 테스트는 재시도 없이
 
     return {
       success: true,
