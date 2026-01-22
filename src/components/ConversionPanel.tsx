@@ -94,18 +94,46 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
     parent.postMessage({ pluginMessage: { type: 'request-frame-data' } }, '*');
   };
 
-  // 클립보드 복사
+  // 클립보드 복사 (fallback 방식)
   const handleCopy = async () => {
     if (!result) return;
 
+    // 방법 1: navigator.clipboard (대부분의 환경에서 차단됨)
     try {
       await navigator.clipboard.writeText(result);
       setCopied(true);
       parent.postMessage({ pluginMessage: { type: 'copy-complete' } }, '*');
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      setError('클립보드 복사에 실패했습니다');
+      return;
+    } catch {
+      // fallback으로 진행
     }
+
+    // 방법 2: execCommand (구식이지만 일부 환경에서 동작)
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = result;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+
+      if (success) {
+        setCopied(true);
+        parent.postMessage({ pluginMessage: { type: 'copy-complete' } }, '*');
+        setTimeout(() => setCopied(false), 2000);
+        return;
+      }
+    } catch {
+      // fallback으로 진행
+    }
+
+    // 방법 3: 사용자에게 수동 복사 안내
+    setError('자동 복사가 지원되지 않습니다. 아래 텍스트를 직접 선택하여 복사해주세요 (Cmd+C / Ctrl+C)');
   };
 
   // LLM 설정 필요 경고
@@ -183,11 +211,26 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
       {result && (
         <>
           <div style={{ marginTop: '16px', fontWeight: 600, marginBottom: '8px' }}>
-            결과 미리보기
+            결과 (선택 후 Cmd+C / Ctrl+C로 복사 가능)
           </div>
-          <div className="preview-area">
-            <pre>{result}</pre>
-          </div>
+          <textarea
+            className="result-textarea"
+            value={result}
+            readOnly
+            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+            style={{
+              width: '100%',
+              height: '250px',
+              padding: '12px',
+              border: '1px solid #e5e5e5',
+              borderRadius: '6px',
+              fontFamily: "'SF Mono', Monaco, 'Courier New', monospace",
+              fontSize: '11px',
+              lineHeight: '1.5',
+              resize: 'vertical',
+              background: '#f9f9f9',
+            }}
+          />
           <button
             className="btn btn-primary"
             onClick={handleCopy}
