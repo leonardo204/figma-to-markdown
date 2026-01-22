@@ -23,6 +23,25 @@ export interface ConversionResult {
   };
 }
 
+// LLM 응답에서 코드 블록 래퍼 제거
+function stripCodeBlockWrapper(text: string): string {
+  let result = text.trim();
+
+  // ```markdown 또는 ```md로 시작하는 경우 제거
+  const startPattern = /^```(?:markdown|md)?\s*\n?/i;
+  if (startPattern.test(result)) {
+    result = result.replace(startPattern, '');
+  }
+
+  // 마지막 ```제거
+  const endPattern = /\n?```\s*$/;
+  if (endPattern.test(result)) {
+    result = result.replace(endPattern, '');
+  }
+
+  return result.trim();
+}
+
 // Figma 프레임 데이터를 Markdown으로 변환
 export async function convertToMarkdown(
   options: ConversionOptions
@@ -44,7 +63,7 @@ export async function convertToMarkdown(
     temperature: 0.3,
   });
 
-  let markdown = markdownResponse.content;
+  let markdown = stripCodeBlockWrapper(markdownResponse.content);
   let totalUsage = markdownResponse.usage;
 
   // 3단계: 번역 (필요한 경우)
@@ -59,7 +78,7 @@ export async function convertToMarkdown(
       temperature: 0.3,
     });
 
-    markdown = translationResponse.content;
+    markdown = stripCodeBlockWrapper(translationResponse.content);
 
     // 토큰 사용량 합산
     if (totalUsage && translationResponse.usage) {
