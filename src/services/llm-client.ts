@@ -197,6 +197,100 @@ async function callAzureOpenAI(
   };
 }
 
+// Gemini API 호출
+async function callGemini(
+  config: Extract<LLMConfig, { provider: 'gemini' }>,
+  options: RequestOptions
+): Promise<LLMResponse> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.modelName}:generateContent?key=${config.apiKey}`;
+
+  // Gemini 형식으로 메시지 변환
+  const systemMessage = options.messages.find((m) => m.role === 'system');
+  const otherMessages = options.messages.filter((m) => m.role !== 'system');
+
+  const contents = otherMessages.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents,
+      systemInstruction: systemMessage
+        ? { parts: [{ text: systemMessage.content }] }
+        : undefined,
+      generationConfig: {
+        maxOutputTokens: options.maxTokens || 4096,
+        temperature: options.temperature ?? 0.7,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      error.error?.message || `Gemini API 오류: ${response.status}`
+    );
+  }
+
+  const data = await response.json();
+  const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  return {
+    content: textContent,
+    usage: data.usageMetadata
+      ? {
+          promptTokens: data.usageMetadata.promptTokenCount || 0,
+          completionTokens: data.usageMetadata.candidatesTokenCount || 0,
+          totalTokens: data.usageMetadata.totalTokenCount || 0,
+        }
+      : undefined,
+  };
+}
+
+// Groq API 호출 (OpenAI 호환 API)
+async function callGroq(
+  config: Extract<LLMConfig, { provider: 'groq' }>,
+  options: RequestOptions
+): Promise<LLMResponse> {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.modelName,
+      messages: options.messages,
+      max_tokens: options.maxTokens || 4096,
+      temperature: options.temperature ?? 0.7,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      error.error?.message || `Groq API 오류: ${response.status}`
+    );
+  }
+
+  const data = await response.json();
+  return {
+    content: data.choices[0]?.message?.content || '',
+    usage: data.usage
+      ? {
+          promptTokens: data.usage.prompt_tokens,
+          completionTokens: data.usage.completion_tokens,
+          totalTokens: data.usage.total_tokens,
+        }
+      : undefined,
+  };
+}
+
 // Ollama API 호출
 async function callOllama(
   config: Extract<LLMConfig, { provider: 'ollama' }>,
@@ -246,6 +340,10 @@ async function callLLMInternal(
       return callClaude(config, options);
     case 'azure-openai':
       return callAzureOpenAI(config, options);
+    case 'gemini':
+      return callGemini(config, options);
+    case 'groq':
+      return callGroq(config, options);
     case 'ollama':
       return callOllama(config, options);
     default:
@@ -300,7 +398,7 @@ export async function testConnection(
     return {
       success: true,
       message: '연결 성공!',
-      modelInfo: `모델: ${config.provider === 'azure-openai' ? config.deploymentName : config.provider === 'openai' || config.provider === 'claude' || config.provider === 'ollama' ? config.modelName : 'Unknown'}`,
+      modelInfo: `모델: ${config.provider === 'azure-openai' ? config.deploymentName : 'modelName' in config ? config.modelName : 'Unknown'}`,
     };
   } catch (error) {
     return {

@@ -1,5 +1,5 @@
 // LLM 제공업체 타입
-export type LLMProvider = 'openai' | 'claude' | 'azure-openai' | 'ollama';
+export type LLMProvider = 'openai' | 'claude' | 'azure-openai' | 'gemini' | 'groq' | 'ollama';
 
 // 제공업체별 설정 타입
 export interface OpenAIConfig {
@@ -22,13 +22,25 @@ export interface AzureOpenAIConfig {
   apiVersion: string; // 2024-02-15-preview 등
 }
 
+export interface GeminiConfig {
+  provider: 'gemini';
+  apiKey: string;
+  modelName: string; // gemini-2.0-flash, gemini-1.5-pro 등
+}
+
+export interface GroqConfig {
+  provider: 'groq';
+  apiKey: string;
+  modelName: string; // llama-3.3-70b-versatile, mixtral-8x7b-32768 등
+}
+
 export interface OllamaConfig {
   provider: 'ollama';
   endpoint: string; // http://localhost:11434
   modelName: string; // llama3, mistral, codellama 등
 }
 
-export type LLMConfig = OpenAIConfig | ClaudeConfig | AzureOpenAIConfig | OllamaConfig;
+export type LLMConfig = OpenAIConfig | ClaudeConfig | AzureOpenAIConfig | GeminiConfig | GroqConfig | OllamaConfig;
 
 // LLM 응답 타입
 export interface LLMResponse {
@@ -58,6 +70,8 @@ export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   openai: 'gpt-4o',
   claude: 'claude-sonnet-4-20250514',
   'azure-openai': '',
+  gemini: 'gemini-2.0-flash',
+  groq: 'llama-3.3-70b-versatile',
   ollama: 'llama3',
 };
 
@@ -66,5 +80,7 @@ export const PROVIDER_LABELS: Record<LLMProvider, string> = {
   openai: 'OpenAI',
   claude: 'Claude (Anthropic)',
   'azure-openai': 'Azure OpenAI',
+  gemini: 'Gemini (Google)',
+  groq: 'Groq',
   ollama: 'Ollama (Local)',
 };

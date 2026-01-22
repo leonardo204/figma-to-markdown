@@ -68,6 +68,18 @@ export function createDefaultConfig(provider: LLMProvider): LLMConfig {
         deploymentName: '',
         apiVersion: '2024-02-15-preview',
       };
+    case 'gemini':
+      return {
+        provider: 'gemini',
+        apiKey: '',
+        modelName: 'gemini-2.0-flash',
+      };
+    case 'groq':
+      return {
+        provider: 'groq',
+        apiKey: '',
+        modelName: 'llama-3.3-70b-versatile',
+      };
     case 'ollama':
       return {
         provider: 'ollama',
@@ -93,6 +105,10 @@ export function isConfigValid(config: LLMConfig | null): boolean {
         config.deploymentName &&
         config.apiVersion
       );
+    case 'gemini':
+      return !!(config.apiKey && config.modelName);
+    case 'groq':
+      return !!(config.apiKey && config.modelName);
     case 'ollama':
       return !!(config.endpoint && config.modelName);
     default:

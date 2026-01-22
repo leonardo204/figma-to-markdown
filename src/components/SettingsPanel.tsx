@@ -176,6 +176,66 @@ export function SettingsPanel({ config, onConfigChange }: SettingsPanelProps) {
           </>
         );
 
+      case 'gemini':
+        return (
+          <>
+            <div className="form-group">
+              <label className="form-label">API Key *</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="AI..."
+                value={localConfig.apiKey}
+                onChange={(e) => handleFieldChange('apiKey', e.target.value)}
+              />
+              <div className="hint-text">Google AI Studio에서 발급받은 API Key</div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Model</label>
+              <select
+                className="form-select"
+                value={localConfig.modelName}
+                onChange={(e) => handleFieldChange('modelName', e.target.value)}
+              >
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash (추천)</option>
+                <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+              </select>
+            </div>
+          </>
+        );
+
+      case 'groq':
+        return (
+          <>
+            <div className="form-group">
+              <label className="form-label">API Key *</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="gsk_..."
+                value={localConfig.apiKey}
+                onChange={(e) => handleFieldChange('apiKey', e.target.value)}
+              />
+              <div className="hint-text">Groq Console에서 발급받은 API Key</div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Model</label>
+              <select
+                className="form-select"
+                value={localConfig.modelName}
+                onChange={(e) => handleFieldChange('modelName', e.target.value)}
+              >
+                <option value="llama-3.3-70b-versatile">Llama 3.3 70B (추천)</option>
+                <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
+                <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+                <option value="gemma2-9b-it">Gemma 2 9B</option>
+              </select>
+            </div>
+          </>
+        );
+
       case 'ollama':
         return (
           <>
