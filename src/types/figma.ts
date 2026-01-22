@@ -21,7 +21,7 @@ export interface ExtractedTextNode {
 
 // 추출된 프레임/그룹 노드
 export interface ExtractedFrameNode {
-  type: 'frame' | 'group' | 'component' | 'instance';
+  type: 'frame' | 'group' | 'component' | 'instance' | 'section';
   id: string;
   name: string;
   position: {

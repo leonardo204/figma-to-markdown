@@ -38,23 +38,33 @@ function sendMessage(message: PluginMessage) {
   figma.ui.postMessage(message);
 }
 
+// 지원하는 컨테이너 노드 타입
+type ContainerNode = FrameNode | ComponentNode | InstanceNode | GroupNode | SectionNode;
+
+function isContainerNode(node: SceneNode): node is ContainerNode {
+  return (
+    node.type === 'FRAME' ||
+    node.type === 'COMPONENT' ||
+    node.type === 'INSTANCE' ||
+    node.type === 'GROUP' ||
+    node.type === 'SECTION'
+  );
+}
+
 // 선택 상태 업데이트
 function updateSelection() {
   const selection = figma.currentPage.selection;
-  const frames = selection.filter(
-    (node): node is FrameNode | ComponentNode | InstanceNode =>
-      node.type === 'FRAME' || node.type === 'COMPONENT' || node.type === 'INSTANCE'
-  );
+  const containers = selection.filter(isContainerNode);
 
-  if (frames.length === 0) {
+  if (containers.length === 0) {
     sendMessage({ type: 'no-selection' });
     return;
   }
 
-  const frameInfos: SelectedFrameInfo[] = frames.map((frame) => ({
-    id: frame.id,
-    name: frame.name,
-    childCount: 'children' in frame ? frame.children.length : 0,
+  const frameInfos: SelectedFrameInfo[] = containers.map((container) => ({
+    id: container.id,
+    name: container.name,
+    childCount: 'children' in container ? container.children.length : 0,
   }));
 
   sendMessage({ type: 'selection-changed', frames: frameInfos });
@@ -93,14 +103,15 @@ function extractNode(node: SceneNode): ExtractedNode | null {
     } as ExtractedTextNode;
   }
 
-  // 프레임, 그룹, 컴포넌트 노드
+  // 프레임, 그룹, 컴포넌트, 섹션 노드
   if (
     node.type === 'FRAME' ||
     node.type === 'GROUP' ||
     node.type === 'COMPONENT' ||
-    node.type === 'INSTANCE'
+    node.type === 'INSTANCE' ||
+    node.type === 'SECTION'
   ) {
-    const containerNode = node as FrameNode | GroupNode | ComponentNode | InstanceNode;
+    const containerNode = node as FrameNode | GroupNode | ComponentNode | InstanceNode | SectionNode;
     const children: ExtractedNode[] = [];
 
     if ('children' in containerNode) {
@@ -112,15 +123,16 @@ function extractNode(node: SceneNode): ExtractedNode | null {
       }
     }
 
+    const nodeTypeMap: Record<string, ExtractedFrameNode['type']> = {
+      FRAME: 'frame',
+      GROUP: 'group',
+      COMPONENT: 'component',
+      INSTANCE: 'instance',
+      SECTION: 'section',
+    };
+
     const frameNode: ExtractedFrameNode = {
-      type:
-        node.type === 'FRAME'
-          ? 'frame'
-          : node.type === 'GROUP'
-            ? 'group'
-            : node.type === 'COMPONENT'
-              ? 'component'
-              : 'instance',
+      type: nodeTypeMap[node.type] || 'frame',
       id: node.id,
       name: node.name,
       position,
@@ -212,16 +224,13 @@ function extractNode(node: SceneNode): ExtractedNode | null {
 // 프레임 데이터 추출
 function extractFrameData(): ExtractedFrame[] {
   const selection = figma.currentPage.selection;
-  const frames = selection.filter(
-    (node): node is FrameNode | ComponentNode | InstanceNode =>
-      node.type === 'FRAME' || node.type === 'COMPONENT' || node.type === 'INSTANCE'
-  );
+  const containers = selection.filter(isContainerNode);
 
-  return frames.map((frame) => {
+  return containers.map((container) => {
     const children: ExtractedNode[] = [];
 
-    if ('children' in frame) {
-      for (const child of frame.children) {
+    if ('children' in container) {
+      for (const child of container.children) {
         const extracted = extractNode(child);
         if (extracted) {
           children.push(extracted);
@@ -230,11 +239,11 @@ function extractFrameData(): ExtractedFrame[] {
     }
 
     return {
-      id: frame.id,
-      name: frame.name,
+      id: container.id,
+      name: container.name,
       size: {
-        width: frame.width,
-        height: frame.height,
+        width: container.width,
+        height: container.height,
       },
       children,
     };
