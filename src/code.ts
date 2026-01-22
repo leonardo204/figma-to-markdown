@@ -51,6 +51,30 @@ function isContainerNode(node: SceneNode): node is ContainerNode {
   );
 }
 
+// Group/Section에서 자식 Frame들 추출
+function getChildFrames(container: ContainerNode): ContainerNode[] {
+  if (container.type === 'GROUP' || container.type === 'SECTION') {
+    // Group/Section의 직접 자식 중 Frame, Component, Instance만 추출
+    if ('children' in container) {
+      return container.children.filter(
+        (child): child is FrameNode | ComponentNode | InstanceNode =>
+          child.type === 'FRAME' || child.type === 'COMPONENT' || child.type === 'INSTANCE'
+      );
+    }
+  }
+  // Frame, Component, Instance는 그대로 반환
+  return [container];
+}
+
+// 선택된 모든 프레임 펼치기 (Group/Section → 자식 Frame들)
+function flattenSelectedFrames(containers: ContainerNode[]): ContainerNode[] {
+  const frames: ContainerNode[] = [];
+  for (const container of containers) {
+    frames.push(...getChildFrames(container));
+  }
+  return frames;
+}
+
 // 선택 상태 업데이트
 function updateSelection() {
   const selection = figma.currentPage.selection;
@@ -61,10 +85,18 @@ function updateSelection() {
     return;
   }
 
-  const frameInfos: SelectedFrameInfo[] = containers.map((container) => ({
-    id: container.id,
-    name: container.name,
-    childCount: 'children' in container ? container.children.length : 0,
+  // Group/Section의 자식 Frame들을 펼침
+  const frames = flattenSelectedFrames(containers);
+
+  if (frames.length === 0) {
+    sendMessage({ type: 'no-selection' });
+    return;
+  }
+
+  const frameInfos: SelectedFrameInfo[] = frames.map((frame) => ({
+    id: frame.id,
+    name: frame.name,
+    childCount: 'children' in frame ? frame.children.length : 0,
   }));
 
   sendMessage({ type: 'selection-changed', frames: frameInfos });
@@ -226,11 +258,14 @@ function extractFrameData(): ExtractedFrame[] {
   const selection = figma.currentPage.selection;
   const containers = selection.filter(isContainerNode);
 
-  return containers.map((container) => {
+  // Group/Section의 자식 Frame들을 펼침
+  const frames = flattenSelectedFrames(containers);
+
+  return frames.map((frame) => {
     const children: ExtractedNode[] = [];
 
-    if ('children' in container) {
-      for (const child of container.children) {
+    if ('children' in frame) {
+      for (const child of frame.children) {
         const extracted = extractNode(child);
         if (extracted) {
           children.push(extracted);
@@ -239,11 +274,11 @@ function extractFrameData(): ExtractedFrame[] {
     }
 
     return {
-      id: container.id,
-      name: container.name,
+      id: frame.id,
+      name: frame.name,
       size: {
-        width: container.width,
-        height: container.height,
+        width: frame.width,
+        height: frame.height,
       },
       children,
     };
