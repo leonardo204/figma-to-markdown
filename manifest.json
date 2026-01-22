@@ -4,7 +4,7 @@
   "api": "1.0.0",
   "main": "build/code.js",
   "ui": "build/ui.html",
-  "capabilities": [],
+  "capabilities": ["inspect"],
   "enableProposedApi": false,
   "editorType": ["figma", "dev"],
   "documentAccess": "dynamic-page",
