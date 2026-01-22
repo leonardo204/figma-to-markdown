@@ -56,7 +56,8 @@ function stripCodeBlockWrapper(text: string): string {
 }
 
 // 순차 처리 임계값 (이 수 이상이면 순차 처리)
-const SEQUENTIAL_THRESHOLD = 4;
+// Rate limit 회피를 위해 항상 순차 처리
+const SEQUENTIAL_THRESHOLD = 1;
 
 // Figma 프레임 데이터를 Markdown으로 변환 (자동 전환)
 export async function convertToMarkdown(

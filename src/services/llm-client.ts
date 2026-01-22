@@ -167,6 +167,18 @@ async function callAzureOpenAI(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
+
+    // 429 Rate Limit 에러 처리
+    if (response.status === 429) {
+      // Retry-After 헤더 확인
+      const retryAfter = response.headers.get('Retry-After');
+      const retrySeconds = retryAfter ? parseInt(retryAfter, 10) : 60;
+
+      throw new Error(
+        `Rate limit exceeded. Retry after ${retrySeconds} seconds. ${error.error?.message || ''}`
+      );
+    }
+
     throw new Error(
       error.error?.message || `Azure OpenAI API 오류: ${response.status}`
     );
