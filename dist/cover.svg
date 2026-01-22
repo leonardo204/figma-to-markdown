@@ -1,0 +1,108 @@
+<svg width="1920" height="960" viewBox="0 0 1920 960" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <rect width="1920" height="960" fill="url(#bgGradient)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="200" cy="150" r="300" fill="white" opacity="0.03"/>
+  <circle cx="1700" cy="800" r="400" fill="white" opacity="0.03"/>
+  <circle cx="960" cy="480" r="600" fill="white" opacity="0.02"/>
+
+  <!-- Left side: Figma frames representation -->
+  <g transform="translate(300, 280)">
+    <!-- Frame 1 -->
+    <rect x="0" y="0" width="280" height="400" rx="16" fill="white" opacity="0.95"/>
+    <rect x="20" y="20" width="240" height="40" rx="8" fill="#E5E7EB"/>
+    <rect x="20" y="80" width="180" height="16" rx="4" fill="#9CA3AF"/>
+    <rect x="20" y="110" width="220" height="16" rx="4" fill="#D1D5DB"/>
+    <rect x="20" y="140" width="200" height="16" rx="4" fill="#D1D5DB"/>
+    <rect x="20" y="180" width="240" height="120" rx="8" fill="#F3F4F6"/>
+    <circle cx="140" cy="240" r="30" fill="#E5E7EB"/>
+    <rect x="20" y="320" width="160" height="16" rx="4" fill="#9CA3AF"/>
+    <rect x="20" y="350" width="120" height="16" rx="4" fill="#D1D5DB"/>
+
+    <!-- Frame 2 (offset) -->
+    <g transform="translate(60, 40)" opacity="0.7">
+      <rect x="0" y="0" width="280" height="400" rx="16" fill="white"/>
+      <rect x="20" y="20" width="240" height="40" rx="8" fill="#E5E7EB"/>
+      <rect x="20" y="80" width="200" height="16" rx="4" fill="#9CA3AF"/>
+      <rect x="20" y="110" width="180" height="16" rx="4" fill="#D1D5DB"/>
+    </g>
+  </g>
+
+  <!-- Center: Arrow and AI spark -->
+  <g transform="translate(760, 400)">
+    <!-- Arrow line -->
+    <path d="M0 80 L300 80" stroke="white" stroke-width="4" stroke-dasharray="20 10" opacity="0.6"/>
+    <path d="M280 60 L320 80 L280 100" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.8"/>
+
+    <!-- AI sparkle -->
+    <g transform="translate(150, 80)">
+      <circle cx="0" cy="0" r="40" fill="white" opacity="0.15"/>
+      <text x="0" y="8" font-family="Arial, sans-serif" font-size="32" fill="white" text-anchor="middle" opacity="0.9">AI</text>
+    </g>
+  </g>
+
+  <!-- Right side: Markdown output -->
+  <g transform="translate(1240, 230)">
+    <rect x="0" y="0" width="380" height="500" rx="16" fill="#1E1E1E" opacity="0.95"/>
+
+    <!-- Code editor top bar -->
+    <rect x="0" y="0" width="380" height="40" rx="16" fill="#2D2D2D"/>
+    <rect x="0" y="16" width="380" height="24" fill="#2D2D2D"/>
+    <circle cx="24" cy="20" r="6" fill="#FF5F56"/>
+    <circle cx="48" cy="20" r="6" fill="#FFBD2E"/>
+    <circle cx="72" cy="20" r="6" fill="#27CA40"/>
+
+    <!-- Markdown content -->
+    <g transform="translate(24, 60)">
+      <text x="0" y="20" font-family="monospace" font-size="16" fill="#C792EA"># </text>
+      <text x="24" y="20" font-family="monospace" font-size="16" fill="white">Login Screen</text>
+
+      <text x="0" y="60" font-family="monospace" font-size="16" fill="#C792EA">## </text>
+      <text x="36" y="60" font-family="monospace" font-size="16" fill="white">Overview</text>
+
+      <text x="0" y="100" font-family="monospace" font-size="14" fill="#A9B7C6">User authentication</text>
+      <text x="0" y="125" font-family="monospace" font-size="14" fill="#A9B7C6">interface with email</text>
+      <text x="0" y="150" font-family="monospace" font-size="14" fill="#A9B7C6">and password fields.</text>
+
+      <text x="0" y="200" font-family="monospace" font-size="16" fill="#C792EA">## </text>
+      <text x="36" y="200" font-family="monospace" font-size="16" fill="white">Components</text>
+
+      <text x="0" y="240" font-family="monospace" font-size="14" fill="#89DDFF">- </text>
+      <text x="20" y="240" font-family="monospace" font-size="14" fill="#A9B7C6">Header with logo</text>
+
+      <text x="0" y="270" font-family="monospace" font-size="14" fill="#89DDFF">- </text>
+      <text x="20" y="270" font-family="monospace" font-size="14" fill="#A9B7C6">Email input field</text>
+
+      <text x="0" y="300" font-family="monospace" font-size="14" fill="#89DDFF">- </text>
+      <text x="20" y="300" font-family="monospace" font-size="14" fill="#A9B7C6">Password input</text>
+
+      <text x="0" y="330" font-family="monospace" font-size="14" fill="#89DDFF">- </text>
+      <text x="20" y="330" font-family="monospace" font-size="14" fill="#A9B7C6">Submit button</text>
+
+      <text x="0" y="380" font-family="monospace" font-size="14" fill="#676E95">```mermaid</text>
+      <text x="0" y="405" font-family="monospace" font-size="14" fill="#676E95">flowchart TD</text>
+    </g>
+  </g>
+
+  <!-- Title -->
+  <text x="960" y="120" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="white" text-anchor="middle">Figma to Markdown</text>
+  <text x="960" y="180" font-family="Arial, sans-serif" font-size="28" fill="white" text-anchor="middle" opacity="0.8">AI-Powered Design Documentation</text>
+
+  <!-- Bottom: Provider logos placeholder -->
+  <g transform="translate(960, 880)" text-anchor="middle">
+    <text x="-300" y="0" font-family="Arial, sans-serif" font-size="18" fill="white" opacity="0.6">OpenAI</text>
+    <text x="-100" y="0" font-family="Arial, sans-serif" font-size="18" fill="white" opacity="0.6">Claude</text>
+    <text x="100" y="0" font-family="Arial, sans-serif" font-size="18" fill="white" opacity="0.6">Azure OpenAI</text>
+    <text x="300" y="0" font-family="Arial, sans-serif" font-size="18" fill="white" opacity="0.6">Ollama</text>
+  </g>
+
+  <!-- Gradient definitions -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="1920" y2="960" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="50%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+</svg>

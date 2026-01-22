@@ -1,4 +1,4 @@
-import type { ExtractedFrame } from '../types/figma';
+import type { ExtractedFrame, ExtractedNode } from '../types/figma';
 import type {
   LLMConfig,
   TranslationLanguage,
@@ -15,6 +15,55 @@ import {
 } from '../prompts/markdown-conversion';
 import { TRANSLATION_SYSTEM_PROMPT, createTranslationPrompt } from '../prompts/translation';
 import { mergeMarkdownResults, aggregateTokenUsage } from './markdown-merger';
+
+// 요청 간 딜레이 (ms) - Rate limit 회피용
+const REQUEST_DELAY_MS = 3000;
+
+// 딜레이 함수
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// 노드 데이터 간소화 (position, size, id 제거, 텍스트와 구조만 유지)
+function simplifyNode(node: ExtractedNode): Record<string, unknown> {
+  const simplified: Record<string, unknown> = {
+    type: node.type,
+    name: node.name,
+  };
+
+  // 텍스트 노드: 텍스트 내용과 스타일 정보만 유지
+  if (node.type === 'text') {
+    const textNode = node as ExtractedNode & { characters?: string; fontSize?: number; fontWeight?: number };
+    simplified.characters = textNode.characters;
+    if (textNode.fontSize) simplified.fontSize = textNode.fontSize;
+    if (textNode.fontWeight) simplified.fontWeight = textNode.fontWeight;
+  }
+
+  // 컨테이너 노드: 자식만 재귀적으로 간소화
+  if ('children' in node && Array.isArray(node.children)) {
+    simplified.children = node.children.map(simplifyNode);
+  }
+
+  // 레이아웃 모드 (구조 파악에 유용)
+  if ('layoutMode' in node && node.layoutMode) {
+    simplified.layoutMode = node.layoutMode;
+  }
+
+  // 도형 타입 (구조 파악에 유용)
+  if (node.type === 'shape' && 'shapeType' in node) {
+    simplified.shapeType = (node as ExtractedNode & { shapeType: string }).shapeType;
+  }
+
+  return simplified;
+}
+
+// 프레임 데이터 간소화
+function simplifyFrameData(frame: ExtractedFrame): Record<string, unknown> {
+  return {
+    name: frame.name,
+    children: frame.children.map(simplifyNode),
+  };
+}
 
 export interface ConversionOptions {
   config: LLMConfig;
@@ -175,8 +224,9 @@ async function convertToMarkdownSequential(
     onProgress?.(`${i + 1}/${frames.length} 변환 중: ${frame.name}`);
 
     try {
-      // 프레임 데이터 직렬화
-      const frameDataJson = JSON.stringify(frame, null, 2);
+      // 프레임 데이터 간소화 및 직렬화 (토큰 절약)
+      const simplifiedFrame = simplifyFrameData(frame);
+      const frameDataJson = JSON.stringify(simplifiedFrame, null, 2);
 
       // LLM 호출
       const response = await callLLM(config, {
@@ -221,6 +271,11 @@ async function convertToMarkdownSequential(
 
       // 다음 프레임을 위한 컨텍스트 저장
       summaries.push(summary);
+
+      // Rate limit 회피를 위한 딜레이 (마지막 프레임 제외)
+      if (i < frames.length - 1) {
+        await delay(REQUEST_DELAY_MS);
+      }
     } catch (error) {
       // 개별 프레임 실패 시 기록하고 계속 진행
       failedFrames.push({
@@ -230,6 +285,11 @@ async function convertToMarkdownSequential(
 
       // 실패한 프레임도 컨텍스트에 기록 (연속성 유지)
       summaries.push(`[변환 실패: ${frame.name}]`);
+
+      // Rate limit 회피를 위한 딜레이 (마지막 프레임 제외)
+      if (i < frames.length - 1) {
+        await delay(REQUEST_DELAY_MS);
+      }
     }
   }
 

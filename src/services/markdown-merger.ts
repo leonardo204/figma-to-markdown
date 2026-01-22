@@ -88,11 +88,64 @@ function createAnchor(text: string): string {
     .replace(/^-|-$/g, '');
 }
 
-// Markdown 정리 (연속 빈 줄 제거)
+// 코드 블록 닫힘 검증 및 수정
+function fixUnclosedCodeBlocks(markdown: string): string {
+  const lines = markdown.split('\n');
+  const result: string[] = [];
+  let inCodeBlock = false;
+  let codeBlockLang = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // 코드 블록 시작 감지 (```로 시작, 언어 지정 가능)
+    if (trimmed.startsWith('```') && !inCodeBlock) {
+      inCodeBlock = true;
+      codeBlockLang = trimmed.slice(3).trim();
+      result.push(line);
+      continue;
+    }
+
+    // 코드 블록 종료 감지 (정확히 ```)
+    if (trimmed === '```' && inCodeBlock) {
+      inCodeBlock = false;
+      codeBlockLang = '';
+      result.push(line);
+      continue;
+    }
+
+    // 다음 코드 블록 시작 전에 현재 블록이 닫히지 않은 경우
+    if (trimmed.startsWith('```') && inCodeBlock) {
+      // 이전 코드 블록 닫기
+      result.push('```');
+      inCodeBlock = true;
+      codeBlockLang = trimmed.slice(3).trim();
+      result.push(line);
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  // 파일 끝에 닫히지 않은 코드 블록이 있으면 닫기
+  if (inCodeBlock) {
+    result.push('```');
+  }
+
+  return result.join('\n');
+}
+
+// Markdown 정리 (연속 빈 줄 제거 + 코드 블록 검증)
 function cleanupMarkdown(markdown: string): string {
-  return markdown
+  let cleaned = markdown
     .replace(/\n{3,}/g, '\n\n') // 3줄 이상 빈 줄 → 2줄
     .trim();
+
+  // 코드 블록 닫힘 검증 및 수정
+  cleaned = fixUnclosedCodeBlocks(cleaned);
+
+  return cleaned;
 }
 
 // 토큰 사용량 합산

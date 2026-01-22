@@ -1,6 +1,6 @@
 {
   "name": "Figma to Markdown",
-  "id": "figma-to-markdown-plugin",
+  "id": "1596085205777675212",
   "api": "1.0.0",
   "main": "build/code.js",
   "ui": "build/ui.html",

@@ -84,15 +84,16 @@ export function App() {
         </button>
       </div>
 
-      {/* 탭 콘텐츠 */}
-      {currentTab === 'settings' ? (
+      {/* 탭 콘텐츠 - CSS로 숨김 처리 (상태 유지) */}
+      <div style={{ display: currentTab === 'settings' ? 'block' : 'none' }}>
         <SettingsPanel config={config} onConfigChange={handleConfigChange} />
-      ) : (
+      </div>
+      <div style={{ display: currentTab === 'convert' ? 'block' : 'none' }}>
         <ConversionPanel
           config={config}
           onSwitchToSettings={() => setCurrentTab('settings')}
         />
-      )}
+      </div>
     </div>
   );
 }

@@ -45,10 +45,18 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
 
       switch (message.type) {
         case 'selection-changed':
+          // 변환 중일 때는 선택 변경 무시 (초기화 방지)
+          if (status === 'converting' || status === 'retrying') {
+            return;
+          }
           setSelectedFrames(message.frames);
           setError('');
           break;
         case 'no-selection':
+          // 변환 중일 때는 선택 해제 무시
+          if (status === 'converting' || status === 'retrying') {
+            return;
+          }
           setSelectedFrames([]);
           break;
         case 'frame-data':
@@ -63,7 +71,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [config, translateTo]);
+  }, [config, translateTo, status]);
 
   // 프레임 데이터 수신 후 변환 처리
   const handleFrameData = useCallback(async (frames: ExtractedFrame[]) => {

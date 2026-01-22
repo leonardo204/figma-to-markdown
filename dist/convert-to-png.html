@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>SVG to PNG Converter</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f5f5f5;
+    }
+    h1 { color: #333; }
+    .section {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #6366F1;
+    }
+    .preview {
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 16px;
+      background: #fafafa;
+      margin: 16px 0;
+      text-align: center;
+      overflow: auto;
+    }
+    .preview svg {
+      max-width: 100%;
+      height: auto;
+    }
+    button {
+      background: #6366F1;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-right: 12px;
+    }
+    button:hover {
+      background: #4F46E5;
+    }
+    .info {
+      color: #666;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    canvas { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Figma Plugin Assets - PNG Converter</h1>
+  <p>버튼을 클릭하면 PNG 파일이 다운로드됩니다.</p>
+
+  <div class="section">
+    <h2>1. Icon (128x128)</h2>
+    <div class="preview" id="icon-container">
+      <svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="128" height="128" rx="24" fill="url(#gradient1)"/>
+        <g transform="translate(20, 32)">
+          <rect x="0" y="0" width="24" height="24" rx="6" fill="white" opacity="0.9"/>
+          <rect x="0" y="28" width="24" height="24" rx="6" fill="white" opacity="0.7"/>
+          <circle cx="36" cy="12" r="12" fill="white" opacity="0.9"/>
+          <circle cx="36" cy="40" r="12" fill="white" opacity="0.7"/>
+        </g>
+        <path d="M68 64 L80 64 L76 58 M80 64 L76 70" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+        <g transform="translate(88, 40)">
+          <rect x="0" y="0" width="28" height="48" rx="4" fill="white" opacity="0.95"/>
+          <text x="14" y="35" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#6366F1" text-anchor="middle">M</text>
+        </g>
+        <defs>
+          <linearGradient id="gradient1" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#6366F1"/>
+            <stop offset="100%" stop-color="#8B5CF6"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <button onclick="convertToPNG('icon-container', 128, 128, 'icon.png')">Download icon.png</button>
+    <div class="info">Figma 플러그인 아이콘 (필수, 128x128px)</div>
+  </div>
+
+  <div class="section">
+    <h2>2. Cover Image (1920x960)</h2>
+    <div class="preview" id="cover-container">
+      <svg width="1920" height="960" viewBox="0 0 1920 960" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="1920" height="960" fill="url(#bgGradient)"/>
+        <circle cx="200" cy="150" r="300" fill="white" opacity="0.03"/>
+        <circle cx="1700" cy="800" r="400" fill="white" opacity="0.03"/>
+        <circle cx="960" cy="480" r="600" fill="white" opacity="0.02"/>
+        <g transform="translate(300, 280)">
+          <rect x="0" y="0" width="280" height="400" rx="16" fill="white" opacity="0.95"/>
+          <rect x="20" y="20" width="240" height="40" rx="8" fill="#E5E7EB"/>
+          <rect x="20" y="80" width="180" height="16" rx="4" fill="#9CA3AF"/>
+          <rect x="20" y="110" width="220" height="16" rx="4" fill="#D1D5DB"/>
+          <rect x="20" y="140" width="200" height="16" rx="4" fill="#D1D5DB"/>
+          <rect x="20" y="180" width="240" height="120" rx="8" fill="#F3F4F6"/>
+          <circle cx="140" cy="240" r="30" fill="#E5E7EB"/>
+          <rect x="20" y="320" width="160" height="16" rx="4" fill="#9CA3AF"/>
+          <rect x="20" y="350" width="120" height="16" rx="4" fill="#D1D5DB"/>
+          <g transform="translate(60, 40)" opacity="0.7">
+            <rect x="0" y="0" width="280" height="400" rx="16" fill="white"/>
+            <rect x="20" y="20" width="240" height="40" rx="8" fill="#E5E7EB"/>
+            <rect x="20" y="80" width="200" height="16" rx="4" fill="#9CA3AF"/>
+            <rect x="20" y="110" width="180" height="16" rx="4" fill="#D1D5DB"/>
+          </g>
+        </g>
+        <g transform="translate(760, 400)">
+          <path d="M0 80 L300 80" stroke="white" stroke-width="4" stroke-dasharray="20 10" opacity="0.6"/>
+          <path d="M280 60 L320 80 L280 100" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.8"/>
+          <g transform="translate(150, 80)">
+            <circle cx="0" cy="0" r="40" fill="white" opacity="0.15"/>
+            <text x="0" y="8" font-family="Arial, sans-serif" font-size="32" fill="white" text-anchor="middle" opacity="0.9">AI</text>
+          </g>
+        </g>
+        <g transform="translate(1240, 230)">
+          <rect x="0" y="0" width="380" height="500" rx="16" fill="#1E1E1E" opacity="0.95"/>
+          <rect x="0" y="0" width="380" height="40" rx="16" fill="#2D2D2D"/>
+          <rect x="0" y="16" width="380" height="24" fill="#2D2D2D"/>
+          <circle cx="24" cy="20" r="6" fill="#FF5F56"/>
+          <circle cx="48" cy="20" r="6" fill="#FFBD2E"/>
+          <circle cx="72" cy="20" r="6" fill="#27CA40"/>
+          <g transform="translate(24, 60)">
+            <text x="0" y="20" font-family="monospace" font-size="16" fill="#C792EA"># </text>
+            <text x="24" y="20" font-family="monospace" font-size="16" fill="white">Login Screen</text>
+            <text x="0" y="60" font-family="monospace" font-size="16" fill="#C792EA">## </text>
+            <text x="36" y="60" font-family="monospace" font-size="16" fill="white">Overview</text>
+            <text x="0" y="100" font-family="monospace" font-size="14" fill="#A9B7C6">User authentication</text>
+            <text x="0" y="125" font-family="monospace" font-size="14" fill="#A9B7C6">interface with email</text>
+            <text x="0" y="150" font-family="monospace" font-size="14" fill="#A9B7C6">and password fields.</text>
+            <text x="0" y="200" font-family="monospace" font-size="16" fill="#C792EA">## </text>
+            <text x="36" y="200" font-family="monospace" font-size="16" fill="white">Components</text>
+            <text x="0" y="240" font-family="monospace" font-size="14" fill="#89DDFF">- </text>
+            <text x="20" y="240" font-family="monospace" font-size="14" fill="#A9B7C6">Header with logo</text>
+            <text x="0" y="270" font-family="monospace" font-size="14" fill="#89DDFF">- </text>
+            <text x="20" y="270" font-family="monospace" font-size="14" fill="#A9B7C6">Email input field</text>
+            <text x="0" y="300" font-family="monospace" font-size="14" fill="#89DDFF">- </text>
+            <text x="20" y="300" font-family="monospace" font-size="14" fill="#A9B7C6">Password input</text>
+            <text x="0" y="330" font-family="monospace" font-size="14" fill="#89DDFF">- </text>
+            <text x="20" y="330" font-family="monospace" font-size="14" fill="#A9B7C6">Submit button</text>
+            <text x="0" y="380" font-family="monospace" font-size="14" fill="#676E95">```mermaid</text>
+            <text x="0" y="405" font-family="monospace" font-size="14" fill="#676E95">flowchart TD</text>
+          </g>
+        </g>
+        <text x="960" y="120" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="white" text-anchor="middle">Figma to Markdown</text>
+        <text x="960" y="180" font-family="Arial, sans-serif" font-size="28" fill="white" text-anchor="middle" opacity="0.8">AI-Powered Design Documentation</text>
+        <g transform="translate(960, 880)" text-anchor="middle">
+          <text x="-300" y="0" font-family="Arial, sans-serif" font-size="18" fill="white" opacity="0.6">OpenAI</text>
+          <text x="-100" y="0" font-family="Arial, sans-serif" font-size="18" fill="white" opacity="0.6">Claude</text>
+          <text x="100" y="0" font-family="Arial, sans-serif" font-size="18" fill="white" opacity="0.6">Azure OpenAI</text>
+          <text x="300" y="0" font-family="Arial, sans-serif" font-size="18" fill="white" opacity="0.6">Ollama</text>
+        </g>
+        <defs>
+          <linearGradient id="bgGradient" x1="0" y1="0" x2="1920" y2="960" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#4F46E5"/>
+            <stop offset="50%" stop-color="#6366F1"/>
+            <stop offset="100%" stop-color="#8B5CF6"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <button onclick="convertToPNG('cover-container', 1920, 960, 'cover.png')">Download cover.png</button>
+    <div class="info">Figma Community 커버 이미지 (권장, 1920x960px)</div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script>
+    function convertToPNG(containerId, width, height, outputName) {
+      const container = document.getElementById(containerId);
+      const svg = container.querySelector('svg');
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = width;
+      canvas.height = height;
+
+      const img = new Image();
+      img.onload = function() {
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(url);
+
+        canvas.toBlob(function(blob) {
+          const link = document.createElement('a');
+          link.download = outputName;
+          link.href = URL.createObjectURL(blob);
+          link.click();
+          URL.revokeObjectURL(link.href);
+        }, 'image/png');
+      };
+      img.src = url;
+    }
+  </script>
+</body>
+</html>

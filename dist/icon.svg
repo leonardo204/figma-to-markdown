@@ -1,0 +1,29 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="128" height="128" rx="24" fill="url(#gradient)"/>
+
+  <!-- Figma-like shape (left) -->
+  <g transform="translate(20, 32)">
+    <rect x="0" y="0" width="24" height="24" rx="6" fill="white" opacity="0.9"/>
+    <rect x="0" y="28" width="24" height="24" rx="6" fill="white" opacity="0.7"/>
+    <circle cx="36" cy="12" r="12" fill="white" opacity="0.9"/>
+    <circle cx="36" cy="40" r="12" fill="white" opacity="0.7"/>
+  </g>
+
+  <!-- Arrow -->
+  <path d="M68 64 L80 64 L76 58 M80 64 L76 70" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+
+  <!-- Markdown symbol (right) -->
+  <g transform="translate(88, 40)">
+    <rect x="0" y="0" width="28" height="48" rx="4" fill="white" opacity="0.95"/>
+    <text x="14" y="35" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#6366F1" text-anchor="middle">M</text>
+  </g>
+
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+</svg>
