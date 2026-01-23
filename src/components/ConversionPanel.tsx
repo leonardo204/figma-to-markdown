@@ -9,8 +9,8 @@ import type {
   FrameConversionResult,
 } from '../types';
 import { LANGUAGE_LABELS } from '../types';
-import { isConfigValid } from '../services/storage';
-import { convertToMarkdown } from '../services/markdown-converter';
+import { isConfigValid, loadCustomPrompt, saveCustomPrompt, clearCustomPrompt } from '../services/storage';
+import { convertToMarkdown, MARKDOWN_SYSTEM_PROMPT } from '../services/markdown-converter';
 import { MarkdownPreview } from './MarkdownPreview';
 
 interface ConversionPanelProps {
@@ -38,6 +38,24 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   const [failedFrames, setFailedFrames] = useState<Array<{ frameName: string; error: string }>>([]);
   const [frameResults, setFrameResults] = useState<FrameConversionResult[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+
+  // 프롬프트 편집 관련 상태
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState<string>('');
+  const [isCustomPromptModified, setIsCustomPromptModified] = useState(false);
+  const [promptSaved, setPromptSaved] = useState(false);
+
+  // 커스텀 프롬프트 로드
+  useEffect(() => {
+    loadCustomPrompt().then((saved) => {
+      if (saved) {
+        setCustomPrompt(saved);
+        setIsCustomPromptModified(true);
+      } else {
+        setCustomPrompt(MARKDOWN_SYSTEM_PROMPT);
+      }
+    });
+  }, []);
 
   // Figma 메시지 핸들러
   useEffect(() => {
@@ -91,6 +109,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
         config,
         frames,
         translateTo,
+        customPrompt: isCustomPromptModified ? customPrompt : undefined,
         onProgress: (msg) => {
           setProgress(msg);
           setStatus('converting');
@@ -123,7 +142,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
       setFrameProgress(null);
       setStatus('error');
     }
-  }, [config, translateTo]);
+  }, [config, translateTo, customPrompt, isCustomPromptModified]);
 
   // 변환 시작
   const handleConvert = () => {
@@ -194,6 +213,26 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
 
   const isConverting = status === 'converting' || status === 'retrying';
   const isConfigured = config && isConfigValid(config);
+
+  // 프롬프트 저장
+  const handleSavePrompt = async () => {
+    await saveCustomPrompt(customPrompt);
+    setIsCustomPromptModified(customPrompt !== MARKDOWN_SYSTEM_PROMPT);
+    setPromptSaved(true);
+    setTimeout(() => setPromptSaved(false), 2000);
+  };
+
+  // 프롬프트 기본값으로 초기화
+  const handleResetPrompt = async () => {
+    setCustomPrompt(MARKDOWN_SYSTEM_PROMPT);
+    setIsCustomPromptModified(false);
+    await clearCustomPrompt();
+  };
+
+  // 프롬프트 변경 핸들러
+  const handlePromptChange = (value: string) => {
+    setCustomPrompt(value);
+  };
 
   // 미리보기 열기
   const handleOpenPreview = () => {
@@ -278,6 +317,60 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
             ))}
           </select>
           <div className="hint-text">LLM을 통해 변환된 문서를 번역합니다</div>
+        </div>
+
+        {/* 고급 설정 (접이식) */}
+        <div className="advanced-section">
+          <button
+            className="advanced-toggle"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            type="button"
+          >
+            <span className="advanced-toggle-icon">{showAdvanced ? '▼' : '▶'}</span>
+            <span>고급 설정</span>
+            {isCustomPromptModified && (
+              <span className="custom-badge">커스텀</span>
+            )}
+          </button>
+
+          {showAdvanced && (
+            <div className="advanced-content">
+              <div className="prompt-editor">
+                <div className="prompt-header">
+                  <label className="form-label">시스템 프롬프트</label>
+                  <div className="prompt-actions">
+                    <button
+                      className="btn btn-xs btn-ghost"
+                      onClick={handleResetPrompt}
+                      title="기본값으로 초기화"
+                      disabled={!isCustomPromptModified}
+                    >
+                      ↺ 초기화
+                    </button>
+                    <button
+                      className={`btn btn-xs ${promptSaved ? 'btn-success' : 'btn-secondary'}`}
+                      onClick={handleSavePrompt}
+                      disabled={isConverting}
+                    >
+                      {promptSaved ? '✓ 저장됨' : '저장'}
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  className="prompt-textarea"
+                  value={customPrompt}
+                  onChange={(e) => handlePromptChange(e.target.value)}
+                  placeholder="LLM에 전달될 시스템 프롬프트를 입력하세요..."
+                  disabled={isConverting}
+                  spellCheck={false}
+                />
+                <div className="prompt-hint">
+                  LLM이 Figma 데이터를 Markdown으로 변환할 때 사용하는 지침입니다.
+                  수정 후 저장하면 다음 변환부터 적용됩니다.
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* LLM 설정 필요 경고 */}

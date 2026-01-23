@@ -13,6 +13,9 @@ import {
   SEQUENTIAL_SYSTEM_PROMPT,
   createSequentialUserPrompt,
 } from '../prompts/markdown-conversion';
+
+// 기본 프롬프트 내보내기 (UI에서 표시용)
+export { MARKDOWN_SYSTEM_PROMPT, SEQUENTIAL_SYSTEM_PROMPT };
 import { TRANSLATION_SYSTEM_PROMPT, createTranslationPrompt } from '../prompts/translation';
 import { mergeMarkdownResults, aggregateTokenUsage } from './markdown-merger';
 
@@ -184,6 +187,7 @@ export interface ConversionOptions {
   config: LLMConfig;
   frames: ExtractedFrame[];
   translateTo: TranslationLanguage;
+  customPrompt?: string; // 사용자 커스텀 프롬프트
   onProgress?: (status: string) => void;
   onRetryWait?: (remainingSeconds: number) => void;
   onFrameProgress?: (progress: SequentialProgress) => void;
@@ -241,7 +245,10 @@ export async function convertToMarkdown(
 async function convertToMarkdownBatch(
   options: ConversionOptions
 ): Promise<ConversionResult> {
-  const { config, frames, translateTo, onProgress, onRetryWait } = options;
+  const { config, frames, translateTo, customPrompt, onProgress, onRetryWait } = options;
+
+  // 커스텀 프롬프트가 있으면 사용, 없으면 기본 프롬프트
+  const systemPrompt = customPrompt || MARKDOWN_SYSTEM_PROMPT;
 
   // 이미지 데이터 수집 (후처리용)
   const images = collectAllImages(frames);
@@ -254,7 +261,7 @@ async function convertToMarkdownBatch(
   onProgress?.('Markdown 변환 중...');
   const markdownResponse = await callLLM(config, {
     messages: [
-      { role: 'system', content: MARKDOWN_SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: createMarkdownUserPrompt(frameDataJson) },
     ],
     maxTokens: 8192,
@@ -329,7 +336,10 @@ function parseSequentialResponse(response: string): { markdown: string; summary:
 async function convertToMarkdownSequential(
   options: ConversionOptions
 ): Promise<ConversionResult> {
-  const { config, frames, translateTo, onProgress, onRetryWait, onFrameProgress } = options;
+  const { config, frames, translateTo, customPrompt, onProgress, onRetryWait, onFrameProgress } = options;
+
+  // 커스텀 프롬프트가 있으면 사용, 없으면 기본 순차 프롬프트
+  const systemPrompt = customPrompt || SEQUENTIAL_SYSTEM_PROMPT;
 
   const results: FrameConversionResult[] = [];
   const failedFrames: Array<{ frameName: string; error: string }> = [];
@@ -359,7 +369,7 @@ async function convertToMarkdownSequential(
       // LLM 호출
       const response = await callLLM(config, {
         messages: [
-          { role: 'system', content: SEQUENTIAL_SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           {
             role: 'user',
             content: createSequentialUserPrompt(

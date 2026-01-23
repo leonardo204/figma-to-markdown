@@ -2,6 +2,7 @@ import type { LLMConfig, LLMProvider } from '../types/llm';
 import type { PluginMessage } from '../types/figma';
 
 const STORAGE_KEY = 'llm-config';
+const PROMPT_STORAGE_KEY = 'custom-prompt';
 
 // 메시지 리스너 등록 (한 번만)
 let messageHandler: ((event: MessageEvent) => void) | null = null;
@@ -158,4 +159,56 @@ export function isConfigValid(config: LLMConfig | null): boolean {
     default:
       return false;
   }
+}
+
+// 커스텀 프롬프트 로드
+export async function loadCustomPrompt(): Promise<string | null> {
+  ensureMessageHandler();
+
+  return new Promise((resolve) => {
+    pendingCallbacks.set(PROMPT_STORAGE_KEY, (value) => {
+      resolve(value || null);
+    });
+
+    parent.postMessage(
+      { pluginMessage: { type: 'load-storage', key: PROMPT_STORAGE_KEY } },
+      '*'
+    );
+
+    // 타임아웃 (3초)
+    setTimeout(() => {
+      if (pendingCallbacks.has(PROMPT_STORAGE_KEY)) {
+        pendingCallbacks.delete(PROMPT_STORAGE_KEY);
+        resolve(null);
+      }
+    }, 3000);
+  });
+}
+
+// 커스텀 프롬프트 저장
+export async function saveCustomPrompt(prompt: string): Promise<void> {
+  parent.postMessage(
+    {
+      pluginMessage: {
+        type: 'save-storage',
+        key: PROMPT_STORAGE_KEY,
+        value: prompt,
+      },
+    },
+    '*'
+  );
+}
+
+// 커스텀 프롬프트 삭제
+export async function clearCustomPrompt(): Promise<void> {
+  parent.postMessage(
+    {
+      pluginMessage: {
+        type: 'save-storage',
+        key: PROMPT_STORAGE_KEY,
+        value: '',
+      },
+    },
+    '*'
+  );
 }

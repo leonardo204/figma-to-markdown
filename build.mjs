@@ -783,6 +783,126 @@ function generateHtml() {
       border-top: 1px solid #e1e4e8;
       margin: 1em 0;
     }
+
+    /* 고급 설정 섹션 */
+    .advanced-section {
+      margin-top: 14px;
+      border-top: 1px solid var(--color-gray-200);
+      padding-top: 14px;
+    }
+
+    .advanced-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-gray-600);
+      transition: var(--transition);
+    }
+
+    .advanced-toggle:hover {
+      color: var(--color-gray-800);
+    }
+
+    .advanced-toggle-icon {
+      font-size: 10px;
+      color: var(--color-gray-400);
+    }
+
+    .custom-badge {
+      background: var(--color-primary-light);
+      color: var(--color-primary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 500;
+      margin-left: auto;
+    }
+
+    .advanced-content {
+      padding-top: 12px;
+    }
+
+    /* 프롬프트 에디터 */
+    .prompt-editor {
+      background: var(--color-gray-50);
+      border: 1px solid var(--color-gray-200);
+      border-radius: var(--radius-md);
+      padding: 12px;
+    }
+
+    .prompt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .prompt-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-xs {
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: var(--radius-sm);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--color-gray-500);
+      border: none;
+    }
+
+    .btn-ghost:hover {
+      color: var(--color-gray-700);
+      background: var(--color-gray-100);
+    }
+
+    .btn-ghost:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .prompt-textarea {
+      width: 100%;
+      height: 200px;
+      padding: 10px;
+      border: 1px solid var(--color-gray-200);
+      border-radius: var(--radius-sm);
+      font-family: 'SF Mono', 'Fira Code', Monaco, monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      resize: vertical;
+      background: white;
+      color: var(--color-gray-800);
+      transition: var(--transition);
+    }
+
+    .prompt-textarea:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 2px var(--color-primary-light);
+    }
+
+    .prompt-textarea:disabled {
+      background: var(--color-gray-100);
+      color: var(--color-gray-500);
+    }
+
+    .prompt-hint {
+      font-size: 10px;
+      color: var(--color-gray-400);
+      margin-top: 8px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
