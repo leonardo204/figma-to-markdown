@@ -65,6 +65,10 @@ export interface ExtractedImageNode {
     width: number;
     height: number;
   };
+  // Base64 인코딩된 이미지 데이터 (리사이즈됨)
+  base64Data?: string;
+  // 주변 텍스트 노드들 (LLM 판단용)
+  surroundingTexts?: string[];
 }
 
 // 통합 노드 타입
@@ -98,10 +102,15 @@ export type PluginMessage =
   | { type: 'frame-data'; frames: ExtractedFrame[] }
   | { type: 'no-selection' }
   | { type: 'error'; message: string }
-  | { type: 'init'; command: string };
+  | { type: 'init'; command: string }
+  | { type: 'extraction-started' }
+  | { type: 'storage-loaded'; key: string; value: string | null }
+  | { type: 'storage-saved'; key: string };
 
 export type UIMessage =
   | { type: 'request-frame-data' }
   | { type: 'copy-complete' }
   | { type: 'close' }
-  | { type: 'resize'; width: number; height: number };
+  | { type: 'resize'; width: number; height: number }
+  | { type: 'load-storage'; key: string }
+  | { type: 'save-storage'; key: string; value: string };

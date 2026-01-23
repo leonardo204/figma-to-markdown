@@ -4,10 +4,16 @@ import type {
   ExtractedTextNode,
   ExtractedFrameNode,
   ExtractedShapeNode,
+  ExtractedImageNode,
   SelectedFrameInfo,
   PluginMessage,
   UIMessage,
 } from './types/figma';
+
+// 이미지 리사이즈 설정
+const IMAGE_MAX_WIDTH = 400;      // 일반 이미지 최대 너비
+const ICON_MAX_SIZE = 100;        // 아이콘 판정 기준 (이 크기 이하면 아이콘)
+const ICON_EXPORT_SIZE = 48;      // 아이콘 export 크기
 
 // UI 크기 설정
 const UI_WIDTH = 400;
@@ -102,8 +108,67 @@ function updateSelection() {
   sendMessage({ type: 'selection-changed', frames: frameInfos });
 }
 
-// 노드에서 데이터 추출
-function extractNode(node: SceneNode): ExtractedNode | null {
+// 프레임 내 모든 텍스트 노드의 텍스트 수집
+function collectTextsFromFrame(node: SceneNode): string[] {
+  const texts: string[] = [];
+
+  if (node.type === 'TEXT') {
+    const textNode = node as TextNode;
+    if (textNode.characters.trim()) {
+      texts.push(textNode.characters.trim());
+    }
+  }
+
+  if ('children' in node) {
+    for (const child of (node as FrameNode).children) {
+      texts.push(...collectTextsFromFrame(child));
+    }
+  }
+
+  return texts;
+}
+
+// 이미지 노드에서 Base64 데이터 추출 (리사이즈 포함)
+async function extractImageBase64(node: SceneNode): Promise<string | undefined> {
+  try {
+    // exportAsync가 지원되는 노드인지 확인
+    if (!('exportAsync' in node)) {
+      return undefined;
+    }
+
+    const exportNode = node as FrameNode | ComponentNode | InstanceNode | RectangleNode;
+
+    // 아이콘 여부 판정 (원본 크기가 작으면 아이콘)
+    const isIcon = node.width <= ICON_MAX_SIZE && node.height <= ICON_MAX_SIZE;
+
+    let scale: number;
+    if (isIcon) {
+      // 아이콘: 고정 크기로 export (48px 기준)
+      scale = ICON_EXPORT_SIZE / Math.max(node.width, node.height);
+    } else {
+      // 일반 이미지: 최대 너비 400px로 제한
+      scale = Math.min(1, IMAGE_MAX_WIDTH / node.width);
+    }
+
+    const bytes = await exportNode.exportAsync({
+      format: 'PNG',
+      constraint: { type: 'SCALE', value: scale },
+    });
+
+    // Uint8Array를 Base64로 변환
+    const base64 = figma.base64Encode(bytes);
+    return `data:image/png;base64,${base64}`;
+  } catch (error) {
+    console.error('이미지 추출 실패:', error);
+    return undefined;
+  }
+}
+
+// 노드에서 데이터 추출 (비동기)
+async function extractNode(
+  node: SceneNode,
+  parentTexts?: string[]
+): Promise<ExtractedNode | null> {
   const position = { x: node.x, y: node.y };
   const size = { width: node.width, height: node.height };
 
@@ -146,9 +211,12 @@ function extractNode(node: SceneNode): ExtractedNode | null {
     const containerNode = node as FrameNode | GroupNode | ComponentNode | InstanceNode | SectionNode;
     const children: ExtractedNode[] = [];
 
+    // 이 컨테이너 내의 텍스트들을 수집 (자식 이미지 노드용)
+    const containerTexts = collectTextsFromFrame(node);
+
     if ('children' in containerNode) {
       for (const child of containerNode.children) {
-        const extracted = extractNode(child);
+        const extracted = await extractNode(child, containerTexts);
         if (extracted) {
           children.push(extracted);
         }
@@ -181,6 +249,35 @@ function extractNode(node: SceneNode): ExtractedNode | null {
     }
 
     return frameNode;
+  }
+
+  // 이미지가 있는 노드 (fills에 IMAGE가 있는 경우) - 도형보다 먼저 체크!
+  if ('fills' in node) {
+    const fills = node.fills;
+    if (Array.isArray(fills)) {
+      const hasImage = fills.some((fill) => fill.type === 'IMAGE');
+      if (hasImage) {
+        // Base64 데이터 추출
+        const base64Data = await extractImageBase64(node);
+
+        // 주변 텍스트 (부모로부터 전달받은 텍스트 또는 노드 이름 기반)
+        const surroundingTexts = parentTexts && parentTexts.length > 0
+          ? parentTexts.slice(0, 10) // 최대 10개 텍스트만
+          : [node.name];
+
+        const imageNode: ExtractedImageNode = {
+          type: 'image',
+          id: node.id,
+          name: node.name,
+          position,
+          size,
+          base64Data,
+          surroundingTexts,
+        };
+
+        return imageNode;
+      }
+    }
   }
 
   // 도형 노드
@@ -233,47 +330,35 @@ function extractNode(node: SceneNode): ExtractedNode | null {
     } as ExtractedShapeNode;
   }
 
-  // 이미지가 있는 노드 (fills에 IMAGE가 있는 경우)
-  if ('fills' in node) {
-    const fills = node.fills;
-    if (Array.isArray(fills)) {
-      const hasImage = fills.some((fill) => fill.type === 'IMAGE');
-      if (hasImage) {
-        return {
-          type: 'image',
-          id: node.id,
-          name: node.name,
-          position,
-          size,
-        };
-      }
-    }
-  }
-
   return null;
 }
 
-// 프레임 데이터 추출
-function extractFrameData(): ExtractedFrame[] {
+// 프레임 데이터 추출 (비동기)
+async function extractFrameData(): Promise<ExtractedFrame[]> {
   const selection = figma.currentPage.selection;
   const containers = selection.filter(isContainerNode);
 
   // Group/Section의 자식 Frame들을 펼침
   const frames = flattenSelectedFrames(containers);
 
-  return frames.map((frame) => {
+  const results: ExtractedFrame[] = [];
+
+  for (const frame of frames) {
     const children: ExtractedNode[] = [];
+
+    // 프레임 내 모든 텍스트 수집 (자식 이미지 노드용)
+    const frameTexts = collectTextsFromFrame(frame);
 
     if ('children' in frame) {
       for (const child of frame.children) {
-        const extracted = extractNode(child);
+        const extracted = await extractNode(child, frameTexts);
         if (extracted) {
           children.push(extracted);
         }
       }
     }
 
-    return {
+    results.push({
       id: frame.id,
       name: frame.name,
       size: {
@@ -281,16 +366,19 @@ function extractFrameData(): ExtractedFrame[] {
         height: frame.height,
       },
       children,
-    };
-  });
+    });
+  }
+
+  return results;
 }
 
 // UI 메시지 핸들러
-figma.ui.onmessage = (message: UIMessage) => {
+figma.ui.onmessage = async (message: UIMessage) => {
   switch (message.type) {
     case 'request-frame-data':
       try {
-        const frameData = extractFrameData();
+        sendMessage({ type: 'extraction-started' } as PluginMessage);
+        const frameData = await extractFrameData();
         if (frameData.length === 0) {
           sendMessage({ type: 'no-selection' });
         } else {
@@ -314,6 +402,22 @@ figma.ui.onmessage = (message: UIMessage) => {
 
     case 'resize':
       figma.ui.resize(message.width, message.height);
+      break;
+
+    case 'load-storage':
+      figma.clientStorage.getAsync(message.key).then((value) => {
+        sendMessage({
+          type: 'storage-loaded',
+          key: message.key,
+          value: value as string | null,
+        });
+      });
+      break;
+
+    case 'save-storage':
+      figma.clientStorage.setAsync(message.key, message.value).then(() => {
+        sendMessage({ type: 'storage-saved', key: message.key });
+      });
       break;
   }
 };

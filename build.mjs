@@ -626,6 +626,163 @@ function generateHtml() {
       color: var(--color-primary);
       font-weight: 500;
     }
+
+    /* 미리보기 모드 */
+    .preview-mode {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      margin: -16px;
+    }
+
+    .preview-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--color-gray-800);
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .preview-title {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .preview-content-wrapper {
+      flex: 1;
+      overflow-y: auto;
+      background: white;
+      padding: 16px;
+    }
+
+    /* 마크다운 미리보기 스타일 */
+    .markdown-preview-content {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #333;
+    }
+
+    .markdown-preview-content h1,
+    .markdown-preview-content h2,
+    .markdown-preview-content h3,
+    .markdown-preview-content h4 {
+      margin-top: 1.2em;
+      margin-bottom: 0.5em;
+      color: #1a1a1a;
+    }
+
+    .markdown-preview-content h1 {
+      font-size: 1.5em;
+      border-bottom: 2px solid #e1e4e8;
+      padding-bottom: 0.3em;
+    }
+
+    .markdown-preview-content h2 {
+      font-size: 1.3em;
+      border-bottom: 1px solid #e1e4e8;
+      padding-bottom: 0.3em;
+    }
+
+    .markdown-preview-content h3 {
+      font-size: 1.1em;
+    }
+
+    .markdown-preview-content p {
+      margin: 0.8em 0;
+    }
+
+    .markdown-preview-content ul,
+    .markdown-preview-content ol {
+      padding-left: 1.5em;
+      margin: 0.5em 0;
+    }
+
+    .markdown-preview-content li {
+      margin: 0.3em 0;
+    }
+
+    .markdown-preview-content code {
+      background: #f6f8fa;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    .markdown-preview-content pre {
+      background: #f6f8fa;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 0.8em 0;
+    }
+
+    .markdown-preview-content pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .markdown-preview-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0.8em 0;
+      font-size: 12px;
+    }
+
+    .markdown-preview-content th,
+    .markdown-preview-content td {
+      border: 1px solid #ddd;
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    .markdown-preview-content th {
+      background: #f6f8fa;
+      font-weight: 600;
+    }
+
+    .markdown-preview-content tr:nth-child(even) {
+      background: #fafbfc;
+    }
+
+    .markdown-preview-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+      margin: 0.8em 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .markdown-preview-content blockquote {
+      border-left: 3px solid #ddd;
+      margin: 0.8em 0;
+      padding-left: 1em;
+      color: #666;
+    }
+
+    .markdown-preview-content .mermaid {
+      background: #fff;
+      text-align: center;
+      margin: 0.8em 0;
+    }
+
+    .markdown-preview-content hr {
+      border: none;
+      border-top: 1px solid #e1e4e8;
+      margin: 1em 0;
+    }
   </style>
 </head>
 <body>

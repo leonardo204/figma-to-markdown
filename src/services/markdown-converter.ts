@@ -1,4 +1,4 @@
-import type { ExtractedFrame, ExtractedNode } from '../types/figma';
+import type { ExtractedFrame, ExtractedNode, ExtractedImageNode } from '../types/figma';
 import type {
   LLMConfig,
   TranslationLanguage,
@@ -19,12 +19,121 @@ import { mergeMarkdownResults, aggregateTokenUsage } from './markdown-merger';
 // 요청 간 딜레이 (ms) - Rate limit 회피용
 const REQUEST_DELAY_MS = 3000;
 
+// 이미지 데이터 구조
+interface ImageData {
+  id: string;
+  name: string;
+  base64Data: string;
+}
+
+// 단일 프레임에서 이미지 데이터 수집
+function collectImagesFromFrame(frame: ExtractedFrame): ImageData[] {
+  const images: ImageData[] = [];
+
+  function collectImages(node: ExtractedNode) {
+    if (node.type === 'image') {
+      const imageNode = node as ExtractedImageNode;
+      if (imageNode.base64Data) {
+        images.push({
+          id: imageNode.id,
+          name: imageNode.name,
+          base64Data: imageNode.base64Data,
+        });
+      }
+    }
+
+    if ('children' in node && Array.isArray(node.children)) {
+      node.children.forEach(collectImages);
+    }
+  }
+
+  frame.children.forEach(collectImages);
+  return images;
+}
+
+// 모든 프레임에서 이미지 데이터 수집
+function collectAllImages(frames: ExtractedFrame[]): ImageData[] {
+  const images: ImageData[] = [];
+  frames.forEach((frame) => {
+    images.push(...collectImagesFromFrame(frame));
+  });
+  return images;
+}
+
+// IMAGE_REF:nodeId를 실제 base64 데이터로 치환
+function replaceImageReferences(markdown: string, images: ImageData[]): string {
+  let result = markdown;
+
+  // 1. ![설명](IMAGE_REF:nodeId) 패턴 매칭
+  result = result.replace(
+    /!\[([^\]]*)\]\(IMAGE_REF:([^)]+)\)/g,
+    (match, description, nodeId) => {
+      const image = images.find((img) => img.id === nodeId);
+      if (image) {
+        return `![${description}](${image.base64Data})`;
+      }
+      // base64 데이터가 없으면 텍스트로 대체
+      return `**[이미지: ${description}]**`;
+    }
+  );
+
+  // 2. **[이미지: 설명]** 패턴을 실제 이미지로 치환 (LLM이 잘못된 형식 출력 시 fallback)
+  if (images.length > 0) {
+    let imageIndex = 0;
+    result = result.replace(
+      /\*\*\[이미지:\s*([^\]]+)\]\*\*/g,
+      (match, description) => {
+        if (imageIndex < images.length) {
+          const image = images[imageIndex];
+          imageIndex++;
+          return `![${description.trim()}](${image.base64Data})`;
+        }
+        return match;
+      }
+    );
+  }
+
+  return result;
+}
+
+// 닫히지 않은 Mermaid 코드 블록 수정
+function fixUnclosedMermaidBlocks(markdown: string): string {
+  // mermaid 코드 블록 찾기
+  const mermaidPattern = /```mermaid\s*([\s\S]*?)(?:```|$)/g;
+  let result = markdown;
+  let lastIndex = 0;
+  const parts: string[] = [];
+
+  let match;
+  while ((match = mermaidPattern.exec(markdown)) !== null) {
+    // 이전 부분 추가
+    parts.push(markdown.slice(lastIndex, match.index));
+
+    const fullMatch = match[0];
+    const content = match[1];
+
+    // 닫는 ``` 가 없는 경우 추가
+    if (!fullMatch.endsWith('```')) {
+      parts.push('```mermaid\n' + content.trim() + '\n```');
+    } else {
+      parts.push(fullMatch);
+    }
+
+    lastIndex = match.index + fullMatch.length;
+  }
+
+  // 나머지 부분 추가
+  parts.push(markdown.slice(lastIndex));
+
+  return parts.join('');
+}
+
 // 딜레이 함수
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// 노드 데이터 간소화 (position, size, id 제거, 텍스트와 구조만 유지)
+// 노드 데이터 간소화 (position, size 제거, 텍스트와 구조만 유지)
 function simplifyNode(node: ExtractedNode): Record<string, unknown> {
   const simplified: Record<string, unknown> = {
     type: node.type,
@@ -37,6 +146,12 @@ function simplifyNode(node: ExtractedNode): Record<string, unknown> {
     simplified.characters = textNode.characters;
     if (textNode.fontSize) simplified.fontSize = textNode.fontSize;
     if (textNode.fontWeight) simplified.fontWeight = textNode.fontWeight;
+  }
+
+  // 이미지 노드: id 유지 (후처리에서 base64 치환용)
+  if (node.type === 'image') {
+    simplified.id = node.id;
+    simplified.hasBase64 = true; // base64 데이터가 있음을 표시
   }
 
   // 컨테이너 노드: 자식만 재귀적으로 간소화
@@ -128,6 +243,9 @@ async function convertToMarkdownBatch(
 ): Promise<ConversionResult> {
   const { config, frames, translateTo, onProgress, onRetryWait } = options;
 
+  // 이미지 데이터 수집 (후처리용)
+  const images = collectAllImages(frames);
+
   // 1단계: 프레임 데이터를 JSON으로 직렬화
   onProgress?.('프레임 데이터 분석 중...');
   const frameDataJson = JSON.stringify(frames, null, 2);
@@ -145,6 +263,13 @@ async function convertToMarkdownBatch(
   });
 
   let markdown = stripCodeBlockWrapper(markdownResponse.content);
+
+  // 후처리: Mermaid 코드 블록 닫기 수정
+  markdown = fixUnclosedMermaidBlocks(markdown);
+
+  // 후처리: 이미지 참조를 실제 base64 데이터로 치환
+  markdown = replaceImageReferences(markdown, images);
+
   let totalUsage = markdownResponse.usage;
 
   // 3단계: 번역 (필요한 경우)
@@ -214,6 +339,9 @@ async function convertToMarkdownSequential(
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i];
 
+    // 이 프레임의 이미지 수집 (프레임별 이미지 치환용)
+    const frameImages = collectImagesFromFrame(frame);
+
     // 진행률 콜백
     onFrameProgress?.({
       currentFrame: i + 1,
@@ -258,7 +386,10 @@ async function convertToMarkdownSequential(
       });
 
       // 응답 파싱
-      const { markdown, summary } = parseSequentialResponse(response.content);
+      let { markdown, summary } = parseSequentialResponse(response.content);
+
+      // 프레임별 이미지 치환 (병합 전에 각 프레임의 이미지로 치환)
+      markdown = replaceImageReferences(markdown, frameImages);
 
       // 결과 저장
       results.push({
@@ -306,6 +437,11 @@ async function convertToMarkdownSequential(
     frameResults: results,
     addTableOfContents: results.length >= 4,
   });
+
+  // 후처리: Mermaid 코드 블록 닫기 수정
+  markdown = fixUnclosedMermaidBlocks(markdown);
+
+  // 이미지는 이미 프레임별로 치환되었으므로 전역 치환 불필요
 
   // 토큰 사용량 합산
   let totalUsage = aggregateTokenUsage(results);

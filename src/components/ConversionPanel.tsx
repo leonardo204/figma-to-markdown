@@ -11,6 +11,7 @@ import type {
 import { LANGUAGE_LABELS } from '../types';
 import { isConfigValid } from '../services/storage';
 import { convertToMarkdown } from '../services/markdown-converter';
+import { MarkdownPreview } from './MarkdownPreview';
 
 interface ConversionPanelProps {
   config: LLMConfig | null;
@@ -36,6 +37,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   const [frameProgress, setFrameProgress] = useState<SequentialProgress | null>(null);
   const [failedFrames, setFailedFrames] = useState<Array<{ frameName: string; error: string }>>([]);
   const [frameResults, setFrameResults] = useState<FrameConversionResult[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Figma 메시지 핸들러
   useEffect(() => {
@@ -58,6 +60,9 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
             return;
           }
           setSelectedFrames([]);
+          break;
+        case 'extraction-started':
+          setProgress('Figma 데이터 추출 중...');
           break;
         case 'frame-data':
           handleFrameData(message.frames);
@@ -189,6 +194,45 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
 
   const isConverting = status === 'converting' || status === 'retrying';
   const isConfigured = config && isConfigValid(config);
+
+  // 미리보기 열기
+  const handleOpenPreview = () => {
+    setShowPreview(true);
+    // UI 크기 확장
+    parent.postMessage({ pluginMessage: { type: 'resize', width: 800, height: 700 } }, '*');
+  };
+
+  // 미리보기 닫기
+  const handleClosePreview = () => {
+    setShowPreview(false);
+    // UI 크기 복원
+    parent.postMessage({ pluginMessage: { type: 'resize', width: 400, height: 600 } }, '*');
+  };
+
+  // 미리보기 모드
+  if (showPreview && result) {
+    return (
+      <div className="preview-mode">
+        <div className="preview-toolbar">
+          <div className="preview-title">📄 Markdown 미리보기</div>
+          <div className="preview-actions">
+            <button
+              className={`btn btn-sm ${copied ? 'btn-success' : 'btn-secondary'}`}
+              onClick={handleCopy}
+            >
+              {copied ? '✓ 복사됨' : '📋 복사'}
+            </button>
+            <button className="btn btn-sm btn-secondary" onClick={handleClosePreview}>
+              ✕ 닫기
+            </button>
+          </div>
+        </div>
+        <div className="preview-content-wrapper">
+          <MarkdownPreview markdown={result} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="conversion-panel">
@@ -397,13 +441,22 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
             onClick={(e) => (e.target as HTMLTextAreaElement).select()}
           />
 
-          <button
-            className={`btn ${copied ? 'btn-success' : 'btn-primary'}`}
-            onClick={handleCopy}
-            style={{ width: '100%', marginTop: 12 }}
-          >
-            {copied ? '✓ 복사 완료!' : '📋 클립보드에 복사'}
-          </button>
+          <div className="button-group" style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button
+              className="btn btn-secondary"
+              onClick={handleOpenPreview}
+              style={{ flex: 1 }}
+            >
+              👁️ 미리보기
+            </button>
+            <button
+              className={`btn ${copied ? 'btn-success' : 'btn-primary'}`}
+              onClick={handleCopy}
+              style={{ flex: 1 }}
+            >
+              {copied ? '✓ 복사됨' : '📋 복사'}
+            </button>
+          </div>
         </div>
       )}
     </div>
