@@ -1,50 +1,108 @@
-# Figma to Markdown - Plugin Information
+# Figma to Markdown - Plugin Publish Information
 
 ## Name
 Figma to Markdown
 
-## Tagline
-Convert Figma frames to Confluence-compatible Markdown using AI (OpenAI, Claude, Azure OpenAI, Ollama)
+## Tagline (최대 60자)
+AI-powered Figma to Markdown converter with inline images & Mermaid diagrams
 
-## Description
-Transform your Figma designs into well-structured Markdown documentation with the power of AI.
+## Description (Figma Community용)
 
-### Features
-- **Multi-frame Support**: Convert multiple frames at once with sequential processing
-- **AI-Powered**: Intelligent conversion using LLM (Large Language Models)
-- **Multiple AI Providers**:
-  - OpenAI (GPT-4, GPT-3.5)
-  - Anthropic Claude
-  - Azure OpenAI
-  - Ollama (Local LLM)
-- **Translation**: Auto-translate to English, Japanese, Chinese, Spanish, French, German
-- **Confluence-Ready**: Output optimized for Confluence wiki format
-- **Rate Limit Handling**: Automatic retry with countdown for API rate limits
-- **Token Usage Tracking**: Monitor your API token consumption
+Transform your Figma designs into professional Markdown documentation instantly with AI.
 
-### How to Use
-1. Select one or more frames in Figma
-2. Configure your LLM API settings (Settings tab)
-3. Click "Convert to Markdown"
-4. Copy the result to your clipboard
+### ✨ Key Features
 
-### Supported Node Types
-- Text nodes (with font size/weight detection)
-- Frames, Components, Instances
-- Groups and Sections
-- Basic shapes (Rectangle, Ellipse, Line, etc.)
-- Images
+**🤖 Multi-LLM Support**
+- OpenAI (GPT-4o, GPT-4, GPT-3.5)
+- Anthropic Claude (Sonnet 4, Opus)
+- Google Gemini (2.0 Flash, Pro)
+- Groq (Llama 3.3, Mixtral)
+- Azure OpenAI (Enterprise)
+- Ollama (Local/Free)
 
-### Privacy
-- Your API keys are stored locally in Figma's client storage
-- Frame data is sent only to your configured LLM provider
-- No data is collected or stored by this plugin
+**📄 Smart Conversion**
+- Multi-frame sequential processing with context awareness
+- Auto-generates Mermaid diagrams for flows & processes
+- Inline Base64 images (icons auto-sized to 48px, images to 400px)
+- Intelligent heading levels based on font size/weight
 
-## Tags
-markdown, documentation, confluence, wiki, ai, llm, openai, claude, export, converter
+**🎨 Advanced Features**
+- Real-time Markdown preview with Mermaid rendering
+- Customizable LLM prompt (Advanced Settings)
+- Multi-language translation (EN, JA, ZH, DE, FR, ES)
+- Token usage tracking per frame
+- Auto rate-limit handling with countdown
 
-## Support
-GitHub: https://github.com/your-repo/figma-to-markdown
+**📋 Confluence-Ready**
+- Optimized output for Confluence wiki format
+- Clean Markdown without wrapper code blocks
+- Table of contents for multi-section documents
+
+### 🚀 How to Use
+
+1. **Setup**: Configure your LLM API key in Settings tab
+2. **Select**: Choose frames in Figma (supports multi-select)
+3. **Convert**: Click "Convert to Markdown"
+4. **Preview**: Check result with Mermaid diagram rendering
+5. **Copy**: Paste directly into Confluence
+
+### 🔒 Privacy
+
+- API keys stored locally in Figma client storage only
+- Frame data sent only to your configured LLM provider
+- No analytics or data collection by this plugin
+
+---
+
+## Tags (최대 5개)
+markdown, confluence, documentation, ai, mermaid
+
+## Category
+Design tools
+
+## Support URL
+https://github.com/leonardo204/figma-to-markdown
 
 ## Version
-1.0.0
+1.1.0
+
+---
+
+# Asset Requirements
+
+## Icon (필수)
+- **크기**: 128x128 px
+- **포맷**: PNG (권장) 또는 SVG
+- **현재 파일**: `dist/icon.png` (128x128)
+
+## Cover Image / Thumbnail (권장)
+- **크기**: 1920x960 px (2:1 비율)
+- **포맷**: PNG 또는 JPG
+- **현재 파일**: `dist/cover.png`
+- **내용 권장**:
+  - 플러그인 UI 스크린샷
+  - 주요 기능 하이라이트
+  - Before/After 비교 (Figma → Markdown)
+
+---
+
+# 업데이트 체크리스트
+
+## Description 업데이트 필요 항목
+- [x] Gemini, Groq 제공자 추가
+- [x] 인라인 이미지 기능
+- [x] Mermaid 다이어그램
+- [x] 실시간 미리보기
+- [x] 프롬프트 커스터마이징
+- [x] 다국어 번역
+
+## Icon 업데이트 (선택)
+현재 아이콘이 적절하다면 유지, 필요시 업데이트:
+- AI/LLM 느낌 추가
+- Markdown 심볼 강조
+
+## Thumbnail 업데이트 권장
+새 기능 반영한 스크린샷:
+1. 변환 결과 + Mermaid 다이어그램 미리보기
+2. 인라인 이미지가 포함된 Markdown 출력
+3. LLM 제공자 선택 화면 (6개 제공자)
