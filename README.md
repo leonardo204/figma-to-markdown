@@ -25,16 +25,20 @@
 
 - **AI 기반 변환**: LLM을 활용한 지능형 Markdown 문서 생성
 - **다중 프레임 지원**: 여러 프레임을 순차 처리하여 하나의 문서로 병합
+- **인라인 이미지**: Figma 이미지를 Base64로 추출하여 Markdown에 직접 포함
 - **Mermaid 다이어그램**: 화면 흐름, 프로세스를 자동으로 Mermaid 차트로 표현
+- **실시간 미리보기**: 변환 결과를 Mermaid 렌더링과 함께 즉시 확인
 - **다국어 번역**: 영어, 일본어, 중국어, 스페인어, 프랑스어, 독일어 지원
 - **Confluence 최적화**: Confluence wiki 형식에 맞는 Markdown 출력
 
 ### 기술적 특징
 
 - **Rate Limit 자동 처리**: API 제한 시 카운트다운과 함께 자동 재시도
+- **스마트 이미지 처리**: 아이콘(≤100px)은 48px로, 일반 이미지는 최대 400px로 자동 리사이즈
 - **데이터 간소화**: 토큰 사용량 최적화를 위한 프레임 데이터 압축
 - **토큰 사용량 추적**: 프레임별 및 전체 토큰 사용량 실시간 모니터링
-- **코드 블록 검증**: Markdown 코드 블록 자동 닫힘 검증 및 수정
+- **코드 블록 검증**: Markdown/Mermaid 코드 블록 자동 닫힘 검증 및 수정
+- **빈 콘텐츠 필터링**: 실제 내용이 없는 프레임은 목차 및 결과에서 자동 제외
 - **상태 유지**: 탭 전환, 선택 변경 시에도 변환 작업 유지
 
 ---
@@ -43,8 +47,10 @@
 
 | Provider | 필요 설정 | 비고 |
 |----------|-----------|------|
-| **OpenAI** | API Key, Model Name | GPT-4, GPT-3.5-turbo 등 |
-| **Claude** | API Key, Model Name | Claude 3 Opus, Sonnet 등 |
+| **OpenAI** | API Key, Model Name | GPT-4o, GPT-4, GPT-3.5-turbo 등 |
+| **Claude** | API Key, Model Name | Claude Sonnet 4, Claude 3 Opus 등 |
+| **Gemini** | API Key, Model Name | Gemini 2.0 Flash, Gemini Pro 등 |
+| **Groq** | API Key, Model Name | Llama 3.3 70B, Mixtral 등 (빠른 추론) |
 | **Azure OpenAI** | Endpoint, API Key, Deployment Name, API Version | 기업용 |
 | **Ollama** | Endpoint, Model Name | 로컬 LLM (무료) |
 
@@ -96,12 +102,12 @@ Figma Desktop에서:
 
 ### 지원하는 노드 타입
 
-- **텍스트**: 폰트 크기, 두께 감지
+- **텍스트**: 폰트 크기, 두께 감지하여 헤딩 레벨 자동 결정
 - **프레임/컴포넌트**: 계층 구조 분석
-- **Auto Layout**: 레이아웃 방향 인식
+- **Auto Layout**: 레이아웃 방향 인식 (HORIZONTAL/VERTICAL)
 - **그룹/섹션**: 자식 프레임 자동 펼침
 - **도형**: Rectangle, Ellipse, Line, Arrow 등
-- **이미지**: 이미지 노드 감지
+- **이미지**: Base64 인라인 이미지로 자동 변환 (크기 자동 최적화)
 
 ---
 
@@ -140,7 +146,8 @@ figma-to-markdown/
 │   ├── components/            # React 컴포넌트
 │   │   ├── App.tsx
 │   │   ├── SettingsPanel.tsx
-│   │   └── ConversionPanel.tsx
+│   │   ├── ConversionPanel.tsx
+│   │   └── MarkdownPreview.tsx  # Mermaid 지원 미리보기
 │   └── prompts/               # LLM 프롬프트
 │       ├── markdown-conversion.ts
 │       └── translation.ts
@@ -159,6 +166,14 @@ figma-to-markdown/
 ### Claude (Anthropic)
 1. [console.anthropic.com](https://console.anthropic.com) → API Keys
 2. `sk-ant-`로 시작하는 키 생성
+
+### Gemini (Google)
+1. [aistudio.google.com](https://aistudio.google.com/apikey) → Get API Key
+2. API 키 생성 및 복사
+
+### Groq
+1. [console.groq.com](https://console.groq.com/keys) → API Keys
+2. `gsk_`로 시작하는 키 생성
 
 ### Azure OpenAI
 1. Azure Portal에서 OpenAI 리소스 생성

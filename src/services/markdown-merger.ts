@@ -21,8 +21,19 @@ export function mergeMarkdownResults(options: MergeOptions): string {
 
   const sections: string[] = [];
 
-  // 1. 문서 제목 (첫 프레임의 첫 번째 헤딩 또는 지정된 제목)
-  const title = documentTitle || extractFirstHeading(frameResults[0].markdown);
+  // 1. 문서 제목 (첫 번째 유효한 프레임의 헤딩 또는 지정된 제목)
+  let title = documentTitle;
+  let titleFrameIndex = -1;
+  if (!title) {
+    // 실제 콘텐츠가 있는 첫 번째 프레임에서 제목 추출
+    for (let i = 0; i < frameResults.length; i++) {
+      if (hasActualContent(frameResults[i].markdown)) {
+        title = extractFirstHeading(frameResults[i].markdown);
+        titleFrameIndex = i;
+        break;
+      }
+    }
+  }
   if (title) {
     sections.push(`# ${title}\n`);
   }
@@ -33,19 +44,26 @@ export function mergeMarkdownResults(options: MergeOptions): string {
   }
 
   // 3. 각 프레임 결과 병합
+  let isFirstContent = true;
   for (let i = 0; i < frameResults.length; i++) {
     const result = frameResults[i];
     let markdown = result.markdown.trim();
 
-    // 첫 프레임에서 최상위 헤딩 제거 (문서 제목으로 이미 사용됨)
-    if (i === 0 && title) {
+    // 실제 콘텐츠가 없는 프레임은 건너뛰기
+    if (!hasActualContent(result.markdown)) {
+      continue;
+    }
+
+    // 제목으로 사용된 프레임에서 최상위 헤딩 제거 (문서 제목으로 이미 사용됨)
+    if (i === titleFrameIndex && title) {
       markdown = removeFirstHeading(markdown);
     }
 
-    // 프레임 간 구분선
-    if (i > 0) {
+    // 프레임 간 구분선 (첫 번째 유효 콘텐츠 이후부터)
+    if (!isFirstContent) {
       sections.push('\n---\n');
     }
+    isFirstContent = false;
 
     sections.push(markdown);
   }
@@ -65,11 +83,28 @@ function removeFirstHeading(markdown: string): string {
   return markdown.replace(/^#{1,2}\s+.+\n?/, '').trim();
 }
 
+// 마크다운에 실제 콘텐츠가 있는지 확인 (헤딩만 있는 경우 제외)
+function hasActualContent(markdown: string): boolean {
+  // 첫 번째 헤딩 제거 후 남은 내용 확인
+  const withoutFirstHeading = markdown.replace(/^#{1,6}\s+.+\n?/, '').trim();
+  // 빈 줄, 구분선, 짧은 텍스트만 있으면 콘텐츠 없음으로 판단
+  const cleaned = withoutFirstHeading
+    .replace(/^---+$/gm, '') // 구분선 제거
+    .replace(/^\s*$/gm, '') // 빈 줄 제거
+    .trim();
+  // 최소 20자 이상의 콘텐츠가 있어야 유효한 콘텐츠로 판단
+  return cleaned.length >= 20;
+}
+
 // 목차 생성
 function generateTableOfContents(results: FrameConversionResult[]): string {
   let toc = '## 목차\n\n';
 
   for (const result of results) {
+    // 실제 콘텐츠가 없는 프레임은 목차에서 제외
+    if (!hasActualContent(result.markdown)) {
+      continue;
+    }
     const title = extractFirstHeading(result.markdown) || result.frameName;
     const anchor = createAnchor(title);
     toc += `- [${title}](#${anchor})\n`;
