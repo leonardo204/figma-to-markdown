@@ -13,6 +13,8 @@
       "https://api.openai.com",
       "https://api.anthropic.com",
       "https://*.openai.azure.com",
+      "https://generativelanguage.googleapis.com",
+      "https://api.groq.com",
       "http://localhost"
     ],
     "reasoning": "LLM API 호출을 위해 필요합니다"
