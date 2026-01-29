@@ -22,6 +22,10 @@ import { mergeMarkdownResults, aggregateTokenUsage } from './markdown-merger';
 // 요청 간 딜레이 (ms) - Rate limit 회피용
 const REQUEST_DELAY_MS = 3000;
 
+// 번역 chunk 크기 (대략적인 문자 수 기준, 토큰 limit 회피용)
+// 4000자 정도로 설정 (한글 기준 약 2000~3000 토큰)
+const TRANSLATION_CHUNK_SIZE = 4000;
+
 // 이미지 데이터 구조
 interface ImageData {
   id: string;
@@ -134,6 +138,96 @@ function fixUnclosedMermaidBlocks(markdown: string): string {
 // 딜레이 함수
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Markdown을 섹션별로 분할 (## 제목 기준)
+function splitMarkdownIntoChunks(markdown: string): string[] {
+  const chunks: string[] = [];
+
+  // ## 헤더로 섹션 분할
+  const sectionPattern = /^(## .+)$/gm;
+  const sections: { title: string; content: string; startIndex: number }[] = [];
+
+  let match;
+  while ((match = sectionPattern.exec(markdown)) !== null) {
+    sections.push({
+      title: match[1],
+      content: '',
+      startIndex: match.index,
+    });
+  }
+
+  // 섹션 내용 추출
+  if (sections.length === 0) {
+    // 섹션이 없으면 전체를 하나의 chunk로
+    if (markdown.length > TRANSLATION_CHUNK_SIZE) {
+      // 그래도 너무 크면 강제로 분할
+      return splitBySize(markdown, TRANSLATION_CHUNK_SIZE);
+    }
+    return [markdown];
+  }
+
+  // 첫 섹션 이전 내용 (제목, 목차 등)
+  const preamble = markdown.slice(0, sections[0].startIndex).trim();
+
+  // 각 섹션 내용 추출
+  for (let i = 0; i < sections.length; i++) {
+    const endIndex = i < sections.length - 1
+      ? sections[i + 1].startIndex
+      : markdown.length;
+    sections[i].content = markdown.slice(sections[i].startIndex, endIndex);
+  }
+
+  // chunk 구성 (크기 기준으로 병합)
+  let currentChunk = preamble ? preamble + '\n\n' : '';
+
+  for (const section of sections) {
+    // 현재 chunk에 추가했을 때 크기 초과하면 새 chunk 시작
+    if (currentChunk.length + section.content.length > TRANSLATION_CHUNK_SIZE) {
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+      }
+
+      // 섹션 자체가 너무 크면 강제 분할
+      if (section.content.length > TRANSLATION_CHUNK_SIZE) {
+        const subChunks = splitBySize(section.content, TRANSLATION_CHUNK_SIZE);
+        chunks.push(...subChunks);
+        currentChunk = '';
+      } else {
+        currentChunk = section.content;
+      }
+    } else {
+      currentChunk += section.content;
+    }
+  }
+
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
+}
+
+// 크기 기준으로 텍스트 분할 (줄바꿈 기준)
+function splitBySize(text: string, maxSize: number): string[] {
+  const chunks: string[] = [];
+  const lines = text.split('\n');
+  let currentChunk = '';
+
+  for (const line of lines) {
+    if (currentChunk.length + line.length + 1 > maxSize && currentChunk.trim()) {
+      chunks.push(currentChunk.trim());
+      currentChunk = line;
+    } else {
+      currentChunk += (currentChunk ? '\n' : '') + line;
+    }
+  }
+
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
 }
 
 // 노드 데이터 간소화 (position, size 제거, 텍스트와 구조만 유지)
@@ -279,29 +373,72 @@ async function convertToMarkdownBatch(
 
   let totalUsage = markdownResponse.usage;
 
-  // 3단계: 번역 (필요한 경우)
+  // 3단계: 번역 (필요한 경우) - chunk 처리로 큰 문서도 번역 가능
   if (translateTo !== 'none') {
-    onProgress?.(`${translateTo}로 번역 중...`);
-    const translationResponse = await callLLM(config, {
-      messages: [
-        { role: 'system', content: TRANSLATION_SYSTEM_PROMPT },
-        { role: 'user', content: createTranslationPrompt(markdown, translateTo) },
-      ],
-      maxTokens: 8192,
-      temperature: 0.3,
-      onRetryWait,
-    });
+    const translationChunks = splitMarkdownIntoChunks(markdown);
 
-    markdown = stripCodeBlockWrapper(translationResponse.content);
+    if (translationChunks.length === 1) {
+      // chunk가 1개면 기존 방식으로 번역
+      onProgress?.(`${translateTo}로 번역 중...`);
+      const translationResponse = await callLLM(config, {
+        messages: [
+          { role: 'system', content: TRANSLATION_SYSTEM_PROMPT },
+          { role: 'user', content: createTranslationPrompt(markdown, translateTo) },
+        ],
+        maxTokens: 8192,
+        temperature: 0.3,
+        onRetryWait,
+      });
 
-    // 토큰 사용량 합산
-    if (totalUsage && translationResponse.usage) {
-      totalUsage = {
-        promptTokens: totalUsage.promptTokens + translationResponse.usage.promptTokens,
-        completionTokens:
-          totalUsage.completionTokens + translationResponse.usage.completionTokens,
-        totalTokens: totalUsage.totalTokens + translationResponse.usage.totalTokens,
-      };
+      markdown = stripCodeBlockWrapper(translationResponse.content);
+
+      // 토큰 사용량 합산
+      if (totalUsage && translationResponse.usage) {
+        totalUsage = {
+          promptTokens: totalUsage.promptTokens + translationResponse.usage.promptTokens,
+          completionTokens:
+            totalUsage.completionTokens + translationResponse.usage.completionTokens,
+          totalTokens: totalUsage.totalTokens + translationResponse.usage.totalTokens,
+        };
+      }
+    } else {
+      // 여러 chunk인 경우 순차 번역
+      const translatedChunks: string[] = [];
+
+      for (let i = 0; i < translationChunks.length; i++) {
+        const chunk = translationChunks[i];
+        onProgress?.(`${translateTo}로 번역 중... (${i + 1}/${translationChunks.length})`);
+
+        const translationResponse = await callLLM(config, {
+          messages: [
+            { role: 'system', content: TRANSLATION_SYSTEM_PROMPT },
+            { role: 'user', content: createTranslationPrompt(chunk, translateTo) },
+          ],
+          maxTokens: 8192,
+          temperature: 0.3,
+          onRetryWait,
+        });
+
+        translatedChunks.push(stripCodeBlockWrapper(translationResponse.content));
+
+        // 토큰 사용량 합산
+        if (totalUsage && translationResponse.usage) {
+          totalUsage = {
+            promptTokens: totalUsage.promptTokens + translationResponse.usage.promptTokens,
+            completionTokens:
+              totalUsage.completionTokens + translationResponse.usage.completionTokens,
+            totalTokens: totalUsage.totalTokens + translationResponse.usage.totalTokens,
+          };
+        }
+
+        // Rate limit 회피를 위한 딜레이 (마지막 chunk 제외)
+        if (i < translationChunks.length - 1) {
+          await delay(REQUEST_DELAY_MS);
+        }
+      }
+
+      // 번역된 chunk들 병합
+      markdown = translatedChunks.join('\n\n');
     }
   }
 
@@ -456,36 +593,95 @@ async function convertToMarkdownSequential(
   // 토큰 사용량 합산
   let totalUsage = aggregateTokenUsage(results);
 
-  // 번역 (필요한 경우)
+  // 번역 (필요한 경우) - chunk 처리로 큰 문서도 번역 가능
   if (translateTo !== 'none') {
-    onFrameProgress?.({
-      currentFrame: frames.length,
-      totalFrames: frames.length,
-      frameName: '번역',
-      phase: 'translating',
-    });
-    onProgress?.(`${translateTo}로 번역 중...`);
+    const translationChunks = splitMarkdownIntoChunks(markdown);
 
-    const translationResponse = await callLLM(config, {
-      messages: [
-        { role: 'system', content: TRANSLATION_SYSTEM_PROMPT },
-        { role: 'user', content: createTranslationPrompt(markdown, translateTo) },
-      ],
-      maxTokens: 8192,
-      temperature: 0.3,
-      onRetryWait,
-    });
+    if (translationChunks.length === 1) {
+      // chunk가 1개면 기존 방식으로 번역
+      onFrameProgress?.({
+        currentFrame: frames.length,
+        totalFrames: frames.length,
+        frameName: '번역',
+        phase: 'translating',
+      });
+      onProgress?.(`${translateTo}로 번역 중...`);
 
-    markdown = stripCodeBlockWrapper(translationResponse.content);
+      const translationResponse = await callLLM(config, {
+        messages: [
+          { role: 'system', content: TRANSLATION_SYSTEM_PROMPT },
+          { role: 'user', content: createTranslationPrompt(markdown, translateTo) },
+        ],
+        maxTokens: 8192,
+        temperature: 0.3,
+        onRetryWait,
+      });
 
-    // 토큰 사용량 합산
-    if (totalUsage && translationResponse.usage) {
-      totalUsage = {
-        promptTokens: totalUsage.promptTokens + translationResponse.usage.promptTokens,
-        completionTokens:
-          totalUsage.completionTokens + translationResponse.usage.completionTokens,
-        totalTokens: totalUsage.totalTokens + translationResponse.usage.totalTokens,
-      };
+      markdown = stripCodeBlockWrapper(translationResponse.content);
+
+      // 토큰 사용량 합산
+      if (totalUsage && translationResponse.usage) {
+        totalUsage = {
+          promptTokens: totalUsage.promptTokens + translationResponse.usage.promptTokens,
+          completionTokens:
+            totalUsage.completionTokens + translationResponse.usage.completionTokens,
+          totalTokens: totalUsage.totalTokens + translationResponse.usage.totalTokens,
+        };
+      }
+    } else {
+      // 여러 chunk인 경우 순차 번역
+      const translatedChunks: string[] = [];
+
+      for (let i = 0; i < translationChunks.length; i++) {
+        const chunk = translationChunks[i];
+
+        onFrameProgress?.({
+          currentFrame: i + 1,
+          totalFrames: translationChunks.length,
+          frameName: `번역 ${i + 1}/${translationChunks.length}`,
+          phase: 'translating',
+        });
+        onProgress?.(`${translateTo}로 번역 중... (${i + 1}/${translationChunks.length})`);
+
+        const translationResponse = await callLLM(config, {
+          messages: [
+            { role: 'system', content: TRANSLATION_SYSTEM_PROMPT },
+            { role: 'user', content: createTranslationPrompt(chunk, translateTo) },
+          ],
+          maxTokens: 8192,
+          temperature: 0.3,
+          onRetryWait: (seconds) => {
+            onFrameProgress?.({
+              currentFrame: i + 1,
+              totalFrames: translationChunks.length,
+              frameName: `번역 ${i + 1}/${translationChunks.length}`,
+              phase: 'retrying',
+              retryCountdown: seconds,
+            });
+            onRetryWait?.(seconds);
+          },
+        });
+
+        translatedChunks.push(stripCodeBlockWrapper(translationResponse.content));
+
+        // 토큰 사용량 합산
+        if (totalUsage && translationResponse.usage) {
+          totalUsage = {
+            promptTokens: totalUsage.promptTokens + translationResponse.usage.promptTokens,
+            completionTokens:
+              totalUsage.completionTokens + translationResponse.usage.completionTokens,
+            totalTokens: totalUsage.totalTokens + translationResponse.usage.totalTokens,
+          };
+        }
+
+        // Rate limit 회피를 위한 딜레이 (마지막 chunk 제외)
+        if (i < translationChunks.length - 1) {
+          await delay(REQUEST_DELAY_MS);
+        }
+      }
+
+      // 번역된 chunk들 병합
+      markdown = translatedChunks.join('\n\n');
     }
   }
 

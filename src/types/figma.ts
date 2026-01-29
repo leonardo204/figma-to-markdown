@@ -93,6 +93,7 @@ export interface ExtractedFrame {
 export interface SelectedFrameInfo {
   id: string;
   name: string;
+  layerName?: string; // Group/Section 부모 이름 (있는 경우)
   childCount: number;
 }
 

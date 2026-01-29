@@ -232,6 +232,8 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   // 프롬프트 변경 핸들러
   const handlePromptChange = (value: string) => {
     setCustomPrompt(value);
+    // 기본값과 다르면 수정된 것으로 표시
+    setIsCustomPromptModified(value !== MARKDOWN_SYSTEM_PROMPT);
   };
 
   // 미리보기 열기
@@ -292,7 +294,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
               {selectedFrames.map((frame) => (
                 <div key={frame.id} className="frame-item">
                   <span className="frame-item-icon">▢</span>
-                  {frame.name}
+                  {frame.layerName ? `${frame.layerName}-${frame.name}` : frame.name}
                 </div>
               ))}
             </div>

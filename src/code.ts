@@ -10,6 +10,42 @@ import type {
   UIMessage,
 } from './types/figma';
 
+// 자연 정렬을 위한 숫자 추출 및 비교 함수
+// 다양한 패턴 지원: "00", "0-01", "text-01", "text00", "text1" 등
+function extractNumberForSort(name: string): { prefix: string; number: number } {
+  // 마지막 숫자 부분 추출 (연속된 숫자 패턴)
+  const match = name.match(/(\d+)(?!.*\d)/);
+  if (match) {
+    const numberPart = parseInt(match[1], 10);
+    const prefix = name.slice(0, match.index);
+    return { prefix, number: numberPart };
+  }
+  return { prefix: name, number: -1 };
+}
+
+// 프레임 이름 자연 정렬 비교 함수
+function naturalSortCompare(a: string, b: string): number {
+  const aExtracted = extractNumberForSort(a);
+  const bExtracted = extractNumberForSort(b);
+
+  // 먼저 prefix 비교 (대소문자 무시)
+  const prefixCompare = aExtracted.prefix.toLowerCase().localeCompare(
+    bExtracted.prefix.toLowerCase()
+  );
+  if (prefixCompare !== 0) {
+    return prefixCompare;
+  }
+
+  // prefix가 같으면 숫자 비교
+  return aExtracted.number - bExtracted.number;
+}
+
+// 프레임 정보와 layer 이름을 함께 저장하는 인터페이스
+interface FrameWithLayerInfo {
+  frame: FrameNode | ComponentNode | InstanceNode;
+  layerName: string | null;
+}
+
 // 이미지 리사이즈 설정
 const IMAGE_MAX_WIDTH = 400;      // 일반 이미지 최대 너비
 const ICON_MAX_SIZE = 100;        // 아이콘 판정 기준 (이 크기 이하면 아이콘)
@@ -57,27 +93,44 @@ function isContainerNode(node: SceneNode): node is ContainerNode {
   );
 }
 
-// Group/Section에서 자식 Frame들 추출
-function getChildFrames(container: ContainerNode): ContainerNode[] {
+// Group/Section에서 자식 Frame들 추출 (layer 이름 정보 포함)
+function getChildFramesWithLayerInfo(
+  container: ContainerNode,
+  layerName: string | null = null
+): FrameWithLayerInfo[] {
   if (container.type === 'GROUP' || container.type === 'SECTION') {
     // Group/Section의 직접 자식 중 Frame, Component, Instance만 추출
     if ('children' in container) {
-      return container.children.filter(
+      const childFrames = container.children.filter(
         (child): child is FrameNode | ComponentNode | InstanceNode =>
           child.type === 'FRAME' || child.type === 'COMPONENT' || child.type === 'INSTANCE'
       );
+      // layer 이름으로 부모 container 이름 사용
+      return childFrames.map((frame) => ({
+        frame,
+        layerName: container.name,
+      }));
     }
+    return [];
   }
-  // Frame, Component, Instance는 그대로 반환
-  return [container];
+  // Frame, Component, Instance는 그대로 반환 (layer 이름 없음)
+  return [{ frame: container as FrameNode | ComponentNode | InstanceNode, layerName }];
 }
 
-// 선택된 모든 프레임 펼치기 (Group/Section → 자식 Frame들)
-function flattenSelectedFrames(containers: ContainerNode[]): ContainerNode[] {
-  const frames: ContainerNode[] = [];
+// 선택된 모든 프레임 펼치기 (Group/Section → 자식 Frame들) + 정렬
+function flattenSelectedFrames(containers: ContainerNode[]): FrameWithLayerInfo[] {
+  const frames: FrameWithLayerInfo[] = [];
   for (const container of containers) {
-    frames.push(...getChildFrames(container));
+    frames.push(...getChildFramesWithLayerInfo(container));
   }
+
+  // 정렬: layer_name이 있으면 "layerName-frameName", 없으면 "frameName" 기준
+  frames.sort((a, b) => {
+    const aDisplayName = a.layerName ? `${a.layerName}-${a.frame.name}` : a.frame.name;
+    const bDisplayName = b.layerName ? `${b.layerName}-${b.frame.name}` : b.frame.name;
+    return naturalSortCompare(aDisplayName, bDisplayName);
+  });
+
   return frames;
 }
 
@@ -91,17 +144,18 @@ function updateSelection() {
     return;
   }
 
-  // Group/Section의 자식 Frame들을 펼침
-  const frames = flattenSelectedFrames(containers);
+  // Group/Section의 자식 Frame들을 펼침 + 정렬
+  const framesWithLayerInfo = flattenSelectedFrames(containers);
 
-  if (frames.length === 0) {
+  if (framesWithLayerInfo.length === 0) {
     sendMessage({ type: 'no-selection' });
     return;
   }
 
-  const frameInfos: SelectedFrameInfo[] = frames.map((frame) => ({
+  const frameInfos: SelectedFrameInfo[] = framesWithLayerInfo.map(({ frame, layerName }) => ({
     id: frame.id,
     name: frame.name,
+    layerName: layerName || undefined,
     childCount: 'children' in frame ? frame.children.length : 0,
   }));
 
@@ -333,17 +387,17 @@ async function extractNode(
   return null;
 }
 
-// 프레임 데이터 추출 (비동기)
+// 프레임 데이터 추출 (비동기) - 정렬된 순서로 추출
 async function extractFrameData(): Promise<ExtractedFrame[]> {
   const selection = figma.currentPage.selection;
   const containers = selection.filter(isContainerNode);
 
-  // Group/Section의 자식 Frame들을 펼침
-  const frames = flattenSelectedFrames(containers);
+  // Group/Section의 자식 Frame들을 펼침 + 정렬
+  const framesWithLayerInfo = flattenSelectedFrames(containers);
 
   const results: ExtractedFrame[] = [];
 
-  for (const frame of frames) {
+  for (const { frame, layerName } of framesWithLayerInfo) {
     const children: ExtractedNode[] = [];
 
     // 프레임 내 모든 텍스트 수집 (자식 이미지 노드용)
@@ -358,9 +412,12 @@ async function extractFrameData(): Promise<ExtractedFrame[]> {
       }
     }
 
+    // displayName: layerName이 있으면 "layerName-frameName"
+    const displayName = layerName ? `${layerName}-${frame.name}` : frame.name;
+
     results.push({
       id: frame.id,
-      name: frame.name,
+      name: displayName,
       size: {
         width: frame.width,
         height: frame.height,
