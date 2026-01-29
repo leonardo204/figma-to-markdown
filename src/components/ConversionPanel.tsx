@@ -29,6 +29,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   const [result, setResult] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const [tokenUsage, setTokenUsage] = useState<{
     promptTokens: number;
     completionTokens: number;
@@ -160,6 +161,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
     setResult('');
     setError('');
     setCopied(false);
+    setCopyFailed(false);
     setTokenUsage(null);
     setRetryCountdown(0);
     setFrameProgress(null);
@@ -174,6 +176,8 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   // 클립보드 복사 (fallback 방식)
   const handleCopy = async () => {
     if (!result) return;
+
+    setCopyFailed(false);
 
     // 방법 1: navigator.clipboard
     try {
@@ -209,7 +213,27 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
       // fallback
     }
 
-    setError('자동 복사가 지원되지 않습니다. 텍스트를 선택하여 복사해주세요.');
+    // 복사 실패
+    setCopyFailed(true);
+  };
+
+  // Markdown 파일 다운로드
+  const handleDownload = () => {
+    if (!result) return;
+
+    try {
+      const blob = new Blob([result], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `figma-export-${Date.now()}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('다운로드에 실패했습니다.');
+    }
   };
 
   const isConverting = status === 'converting' || status === 'retrying';
@@ -263,6 +287,13 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
               onClick={handleCopy}
             >
               {copied ? '✓ 복사됨' : '📋 복사'}
+            </button>
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={handleDownload}
+              title="Markdown 파일로 다운로드"
+            >
+              💾 저장
             </button>
             <button className="btn btn-sm btn-secondary" onClick={handleClosePreview}>
               ✕ 닫기
@@ -552,7 +583,37 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
             >
               {copied ? '✓ 복사됨' : '📋 복사'}
             </button>
+            <button
+              className="btn btn-secondary"
+              onClick={handleDownload}
+              style={{ flex: 1 }}
+              title="Markdown 파일로 다운로드"
+            >
+              💾 저장
+            </button>
           </div>
+
+          {/* 복사 실패 안내 */}
+          {copyFailed && (
+            <div className="copy-failed-notice" style={{ marginTop: 12 }}>
+              <div className="status status-warning" style={{ marginBottom: 8 }}>
+                <span className="status-icon">⚠️</span>
+                <div>
+                  <div>클립보드 복사에 실패했습니다</div>
+                  <div style={{ fontSize: 11, marginTop: 2 }}>
+                    텍스트가 너무 길거나 브라우저 제한으로 인해 복사되지 않았습니다.
+                  </div>
+                </div>
+              </div>
+              <div className="hint-text" style={{ marginBottom: 8 }}>
+                아래 방법 중 하나를 사용해주세요:
+              </div>
+              <ul className="copy-alternatives" style={{ fontSize: 12, paddingLeft: 20, margin: 0 }}>
+                <li>위 텍스트 영역을 클릭하여 전체 선택 후 Ctrl+C (Mac: Cmd+C)</li>
+                <li>💾 저장 버튼으로 Markdown 파일 다운로드</li>
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>
