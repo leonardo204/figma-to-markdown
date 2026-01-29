@@ -6,6 +6,7 @@ import type {
   ExtractedShapeNode,
   ExtractedImageNode,
   SelectedFrameInfo,
+  FrameRequestInfo,
   PluginMessage,
   UIMessage,
 } from './types/figma';
@@ -387,17 +388,25 @@ async function extractNode(
   return null;
 }
 
-// 프레임 데이터 추출 (비동기) - 정렬된 순서로 추출
-async function extractFrameData(): Promise<ExtractedFrame[]> {
-  const selection = figma.currentPage.selection;
-  const containers = selection.filter(isContainerNode);
+// ID로 노드 찾기 (페이지 전체에서 검색)
+function findNodeById(id: string): SceneNode | null {
+  return figma.currentPage.findOne((node) => node.id === id);
+}
 
-  // Group/Section의 자식 Frame들을 펼침 + 정렬
-  const framesWithLayerInfo = flattenSelectedFrames(containers);
-
+// 프레임 데이터 추출 (비동기) - 전달받은 프레임 정보 기반으로 추출 (선택 변경에 영향받지 않음)
+async function extractFrameData(frameInfos: FrameRequestInfo[]): Promise<ExtractedFrame[]> {
   const results: ExtractedFrame[] = [];
 
-  for (const { frame, layerName } of framesWithLayerInfo) {
+  for (const frameInfo of frameInfos) {
+    const node = findNodeById(frameInfo.id);
+    if (!node) continue;
+
+    // Frame, Component, Instance만 처리
+    if (node.type !== 'FRAME' && node.type !== 'COMPONENT' && node.type !== 'INSTANCE') {
+      continue;
+    }
+
+    const frame = node as FrameNode | ComponentNode | InstanceNode;
     const children: ExtractedNode[] = [];
 
     // 프레임 내 모든 텍스트 수집 (자식 이미지 노드용)
@@ -413,7 +422,7 @@ async function extractFrameData(): Promise<ExtractedFrame[]> {
     }
 
     // displayName: layerName이 있으면 "layerName-frameName"
-    const displayName = layerName ? `${layerName}-${frame.name}` : frame.name;
+    const displayName = frameInfo.layerName ? `${frameInfo.layerName}-${frame.name}` : frame.name;
 
     results.push({
       id: frame.id,
@@ -435,7 +444,7 @@ figma.ui.onmessage = async (message: UIMessage) => {
     case 'request-frame-data':
       try {
         sendMessage({ type: 'extraction-started' } as PluginMessage);
-        const frameData = await extractFrameData();
+        const frameData = await extractFrameData(message.frames);
         if (frameData.length === 0) {
           sendMessage({ type: 'no-selection' });
         } else {

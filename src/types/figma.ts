@@ -108,8 +108,14 @@ export type PluginMessage =
   | { type: 'storage-loaded'; key: string; value: string | null }
   | { type: 'storage-saved'; key: string };
 
+// 변환 요청 시 전달하는 프레임 정보
+export interface FrameRequestInfo {
+  id: string;
+  layerName?: string;
+}
+
 export type UIMessage =
-  | { type: 'request-frame-data' }
+  | { type: 'request-frame-data'; frames: FrameRequestInfo[] }
   | { type: 'copy-complete' }
   | { type: 'close' }
   | { type: 'resize'; width: number; height: number }

@@ -166,8 +166,9 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
     setFailedFrames([]);
     setFrameResults([]);
 
-    // 프레임 데이터 요청
-    parent.postMessage({ pluginMessage: { type: 'request-frame-data' } }, '*');
+    // 프레임 데이터 요청 (선택된 프레임 정보 전달 - 변환 중 선택 변경 방지)
+    const frames = selectedFrames.map((f) => ({ id: f.id, layerName: f.layerName }));
+    parent.postMessage({ pluginMessage: { type: 'request-frame-data', frames } }, '*');
   };
 
   // 클립보드 복사 (fallback 방식)
