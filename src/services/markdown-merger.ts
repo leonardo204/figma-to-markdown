@@ -123,6 +123,20 @@ function createAnchor(text: string): string {
     .replace(/^-|-$/g, '');
 }
 
+// 빈 코드 블록 제거 (``` 바로 다음에 ```mermaid 같은 패턴)
+function removeEmptyCodeBlocks(markdown: string): string {
+  // 패턴 1: ``` (빈 줄 또는 공백만) ``` 제거
+  let result = markdown.replace(/```\s*\n\s*```/g, '');
+
+  // 패턴 2: ``` 바로 다음에 ```mermaid가 오는 경우, 첫 번째 빈 ``` 제거
+  result = result.replace(/```\s*\n+```mermaid/g, '```mermaid');
+
+  // 패턴 3: ``` 바로 다음에 ```로 시작하는 다른 코드 블록이 오는 경우
+  result = result.replace(/```\s*\n+```(\w+)/g, '```$1');
+
+  return result;
+}
+
 // 코드 블록 닫힘 검증 및 수정
 function fixUnclosedCodeBlocks(markdown: string): string {
   const lines = markdown.split('\n');
@@ -177,10 +191,71 @@ function cleanupMarkdown(markdown: string): string {
     .replace(/\n{3,}/g, '\n\n') // 3줄 이상 빈 줄 → 2줄
     .trim();
 
+  // 빈 코드 블록 제거
+  cleaned = removeEmptyCodeBlocks(cleaned);
+
   // 코드 블록 닫힘 검증 및 수정
   cleaned = fixUnclosedCodeBlocks(cleaned);
 
   return cleaned;
+}
+
+// 번역 후 목차 재생성 (본문의 실제 ## 헤더 기반)
+export function regenerateTableOfContents(markdown: string): string {
+  // 1. 기존 목차 섹션 찾기 및 제거
+  // "## 목차" 또는 "## Table of Contents" 등으로 시작하는 섹션
+  const tocPatterns = [
+    /^## 목차\s*\n(?:- \[.*?\]\(#.*?\)\s*\n)*/m,
+    /^## Table of Contents\s*\n(?:- \[.*?\]\(#.*?\)\s*\n)*/m,
+    /^## Contents\s*\n(?:- \[.*?\]\(#.*?\)\s*\n)*/m,
+  ];
+
+  let withoutToc = markdown;
+  for (const pattern of tocPatterns) {
+    withoutToc = withoutToc.replace(pattern, '');
+  }
+
+  // 2. 본문에서 ## 헤더 추출 (목차 제외)
+  const headerPattern = /^## (.+)$/gm;
+  const headers: string[] = [];
+  let match;
+
+  while ((match = headerPattern.exec(withoutToc)) !== null) {
+    const headerText = match[1].trim();
+    // 목차 관련 헤더는 제외
+    if (
+      headerText !== '목차' &&
+      headerText !== 'Table of Contents' &&
+      headerText !== 'Contents'
+    ) {
+      headers.push(headerText);
+    }
+  }
+
+  // 헤더가 4개 미만이면 목차 생성 불필요
+  if (headers.length < 4) {
+    return withoutToc.trim();
+  }
+
+  // 3. 새 목차 생성
+  let newToc = '## 목차\n\n';
+  for (const header of headers) {
+    const anchor = createAnchor(header);
+    newToc += `- [${header}](#${anchor})\n`;
+  }
+
+  // 4. 문서 앞부분에 목차 삽입
+  // 첫 번째 # 제목 다음에 삽입
+  const titleMatch = withoutToc.match(/^# .+\n/);
+  if (titleMatch) {
+    const insertPos = titleMatch.index! + titleMatch[0].length;
+    const before = withoutToc.slice(0, insertPos);
+    const after = withoutToc.slice(insertPos).replace(/^\n+/, ''); // 앞쪽 빈 줄 제거
+    return `${before}\n${newToc}\n${after}`.trim();
+  }
+
+  // 제목이 없으면 맨 앞에 삽입
+  return `${newToc}\n${withoutToc}`.trim();
 }
 
 // 토큰 사용량 합산

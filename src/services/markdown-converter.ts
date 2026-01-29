@@ -17,7 +17,7 @@ import {
 // 기본 프롬프트 내보내기 (UI에서 표시용)
 export { MARKDOWN_SYSTEM_PROMPT, SEQUENTIAL_SYSTEM_PROMPT };
 import { TRANSLATION_SYSTEM_PROMPT, createTranslationPrompt } from '../prompts/translation';
-import { mergeMarkdownResults, aggregateTokenUsage } from './markdown-merger';
+import { mergeMarkdownResults, aggregateTokenUsage, regenerateTableOfContents } from './markdown-merger';
 
 // 요청 간 딜레이 (ms) - Rate limit 회피용
 const REQUEST_DELAY_MS = 3000;
@@ -440,6 +440,9 @@ async function convertToMarkdownBatch(
       // 번역된 chunk들 병합
       markdown = translatedChunks.join('\n\n');
     }
+
+    // 번역 후 목차 재생성 (chunk별 번역으로 인한 제목 불일치 해결)
+    markdown = regenerateTableOfContents(markdown);
   }
 
   onProgress?.('완료!');
@@ -683,6 +686,9 @@ async function convertToMarkdownSequential(
       // 번역된 chunk들 병합
       markdown = translatedChunks.join('\n\n');
     }
+
+    // 번역 후 목차 재생성 (chunk별 번역으로 인한 제목 불일치 해결)
+    markdown = regenerateTableOfContents(markdown);
   }
 
   onProgress?.('완료!');
