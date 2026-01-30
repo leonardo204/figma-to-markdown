@@ -96,9 +96,10 @@ function hasActualContent(markdown: string): boolean {
   return cleaned.length >= 20;
 }
 
-// 목차 생성
+// 목차 생성 (중복 앵커 처리 포함)
 function generateTableOfContents(results: FrameConversionResult[]): string {
   let toc = '## 목차\n\n';
+  const anchorCounts: Map<string, number> = new Map();
 
   for (const result of results) {
     // 실제 콘텐츠가 없는 프레임은 목차에서 제외
@@ -106,7 +107,14 @@ function generateTableOfContents(results: FrameConversionResult[]): string {
       continue;
     }
     const title = extractFirstHeading(result.markdown) || result.frameName;
-    const anchor = createAnchor(title);
+    const baseAnchor = createAnchor(title);
+
+    // 중복 앵커 처리
+    const count = anchorCounts.get(baseAnchor) || 0;
+    anchorCounts.set(baseAnchor, count + 1);
+
+    // GitHub/Confluence 스타일: 중복 시 -1, -2 등 추가
+    const anchor = count === 0 ? baseAnchor : `${baseAnchor}-${count}`;
     toc += `- [${title}](#${anchor})\n`;
   }
 
@@ -237,10 +245,18 @@ export function regenerateTableOfContents(markdown: string): string {
     return withoutToc.trim();
   }
 
-  // 3. 새 목차 생성
+  // 3. 새 목차 생성 (중복 앵커 처리)
   let newToc = '## 목차\n\n';
+  const anchorCounts: Map<string, number> = new Map();
+
   for (const header of headers) {
-    const anchor = createAnchor(header);
+    const baseAnchor = createAnchor(header);
+
+    // 중복 앵커 처리
+    const count = anchorCounts.get(baseAnchor) || 0;
+    anchorCounts.set(baseAnchor, count + 1);
+
+    const anchor = count === 0 ? baseAnchor : `${baseAnchor}-${count}`;
     newToc += `- [${header}](#${anchor})\n`;
   }
 

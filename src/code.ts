@@ -12,6 +12,38 @@ import type {
   UIMessage,
 } from './types/figma';
 
+// displayName 생성: layerName과 frameName 중복 접두어 제거
+// 예: layerName="01. Common", frameName="01. Common_29" → "01. Common_29"
+// 예: layerName="Section A", frameName="Frame 01" → "Section A-Frame 01"
+function createDisplayName(layerName: string | undefined, frameName: string): string {
+  if (!layerName) {
+    return frameName;
+  }
+
+  // layerName을 정규화 (공백, 특수문자 정리)
+  const normalizedLayerName = layerName.trim().toLowerCase();
+  const normalizedFrameName = frameName.trim().toLowerCase();
+
+  // frameName이 layerName으로 시작하면 중복이므로 frameName만 사용
+  // 예: "01. common" 시작하는 "01. common_29" → frameName만
+  if (normalizedFrameName.startsWith(normalizedLayerName)) {
+    return frameName;
+  }
+
+  // layerName의 핵심 부분 추출 (숫자, 점, 공백 등 구분자 이후)
+  // "01. Common" → "common", "Section A" → "section a"
+  const layerCore = normalizedLayerName.replace(/^[\d.\s-]+/, '').trim();
+  const frameCore = normalizedFrameName.replace(/^[\d.\s-]+/, '').trim();
+
+  // 핵심 부분이 같거나 frameName이 포함하면 중복
+  if (layerCore && frameCore.startsWith(layerCore)) {
+    return frameName;
+  }
+
+  // 중복 아니면 조합
+  return `${layerName}-${frameName}`;
+}
+
 // 자연 정렬을 위한 숫자 추출 및 비교 함수
 // 다양한 패턴 지원: "00", "0-01", "text-01", "text00", "text1" 등
 function extractNumberForSort(name: string): { prefix: string; number: number } {
@@ -467,8 +499,8 @@ async function extractFrameData(
       }
     }
 
-    // displayName: layerName이 있으면 "layerName-frameName"
-    const displayName = frameInfo.layerName ? `${frameInfo.layerName}-${frame.name}` : frame.name;
+    // displayName 생성: 중복 접두어 제거
+    const displayName = createDisplayName(frameInfo.layerName, frame.name);
 
     results.push({
       id: frame.id,

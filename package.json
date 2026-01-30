@@ -1,6 +1,6 @@
 {
   "name": "figma-to-markdown",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Figma 프레임을 Confluence용 Markdown으로 변환하는 플러그인",
   "scripts": {
     "build": "node build.mjs",

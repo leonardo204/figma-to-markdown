@@ -2,3 +2,7 @@ node_modules/
 build/
 .DS_Store
 *.log
+
+# 테스트/임시 파일
+p*.png
+figma-export-*.md
