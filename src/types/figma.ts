@@ -65,10 +65,17 @@ export interface ExtractedImageNode {
     width: number;
     height: number;
   };
-  // Base64 인코딩된 이미지 데이터 (리사이즈됨)
-  base64Data?: string;
+  // 이미지 파일명 (images/img-001.png 형식)
+  fileName?: string;
   // 주변 텍스트 노드들 (LLM 판단용)
   surroundingTexts?: string[];
+}
+
+// 추출된 이미지 파일 데이터 (ZIP용)
+export interface ExtractedImageFile {
+  id: string;
+  fileName: string;  // images/img-001.png
+  bytes: Uint8Array;
 }
 
 // 통합 노드 타입
@@ -100,7 +107,7 @@ export interface SelectedFrameInfo {
 // 플러그인 ↔ UI 메시지 타입
 export type PluginMessage =
   | { type: 'selection-changed'; frames: SelectedFrameInfo[] }
-  | { type: 'frame-data'; frames: ExtractedFrame[] }
+  | { type: 'frame-data'; frames: ExtractedFrame[]; images?: ExtractedImageFile[] }
   | { type: 'no-selection' }
   | { type: 'error'; message: string }
   | { type: 'init'; command: string }
@@ -115,7 +122,7 @@ export interface FrameRequestInfo {
 }
 
 export type UIMessage =
-  | { type: 'request-frame-data'; frames: FrameRequestInfo[] }
+  | { type: 'request-frame-data'; frames: FrameRequestInfo[]; includeImages?: boolean }
   | { type: 'copy-complete' }
   | { type: 'close' }
   | { type: 'resize'; width: number; height: number }

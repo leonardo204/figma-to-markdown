@@ -5,6 +5,7 @@ import type {
   ExtractedFrameNode,
   ExtractedShapeNode,
   ExtractedImageNode,
+  ExtractedImageFile,
   SelectedFrameInfo,
   FrameRequestInfo,
   PluginMessage,
@@ -183,8 +184,8 @@ function collectTextsFromFrame(node: SceneNode): string[] {
   return texts;
 }
 
-// 이미지 노드에서 Base64 데이터 추출 (리사이즈 포함)
-async function extractImageBase64(node: SceneNode): Promise<string | undefined> {
+// 이미지 노드에서 PNG 바이너리 추출 (리사이즈 포함)
+async function extractImageBytes(node: SceneNode): Promise<Uint8Array | undefined> {
   try {
     // exportAsync가 지원되는 노드인지 확인
     if (!('exportAsync' in node)) {
@@ -210,19 +211,34 @@ async function extractImageBase64(node: SceneNode): Promise<string | undefined> 
       constraint: { type: 'SCALE', value: scale },
     });
 
-    // Uint8Array를 Base64로 변환
-    const base64 = figma.base64Encode(bytes);
-    return `data:image/png;base64,${base64}`;
+    return bytes;
   } catch (error) {
     console.error('이미지 추출 실패:', error);
     return undefined;
   }
 }
 
+// 이미지 인덱스 카운터 (프레임 추출 시 초기화)
+let imageCounter = 0;
+
+// 파일명 생성 (img-001.png 형식)
+function generateImageFileName(): string {
+  imageCounter++;
+  const paddedIndex = String(imageCounter).padStart(3, '0');
+  return `images/img-${paddedIndex}.png`;
+}
+
+// 이미지 파일 수집 컨텍스트
+interface ImageCollectionContext {
+  includeImages: boolean;
+  images: ExtractedImageFile[];
+}
+
 // 노드에서 데이터 추출 (비동기)
 async function extractNode(
   node: SceneNode,
-  parentTexts?: string[]
+  parentTexts?: string[],
+  imageContext?: ImageCollectionContext
 ): Promise<ExtractedNode | null> {
   const position = { x: node.x, y: node.y };
   const size = { width: node.width, height: node.height };
@@ -271,7 +287,7 @@ async function extractNode(
 
     if ('children' in containerNode) {
       for (const child of containerNode.children) {
-        const extracted = await extractNode(child, containerTexts);
+        const extracted = await extractNode(child, containerTexts, imageContext);
         if (extracted) {
           children.push(extracted);
         }
@@ -312,13 +328,25 @@ async function extractNode(
     if (Array.isArray(fills)) {
       const hasImage = fills.some((fill) => fill.type === 'IMAGE');
       if (hasImage) {
-        // Base64 데이터 추출
-        const base64Data = await extractImageBase64(node);
-
         // 주변 텍스트 (부모로부터 전달받은 텍스트 또는 노드 이름 기반)
         const surroundingTexts = parentTexts && parentTexts.length > 0
           ? parentTexts.slice(0, 10) // 최대 10개 텍스트만
           : [node.name];
+
+        let fileName: string | undefined;
+
+        // 이미지 포함 옵션이 켜져 있을 때만 바이너리 추출
+        if (imageContext?.includeImages) {
+          const bytes = await extractImageBytes(node);
+          if (bytes) {
+            fileName = generateImageFileName();
+            imageContext.images.push({
+              id: node.id,
+              fileName,
+              bytes,
+            });
+          }
+        }
 
         const imageNode: ExtractedImageNode = {
           type: 'image',
@@ -326,7 +354,7 @@ async function extractNode(
           name: node.name,
           position,
           size,
-          base64Data,
+          fileName,
           surroundingTexts,
         };
 
@@ -393,9 +421,27 @@ function findNodeById(id: string): SceneNode | null {
   return figma.currentPage.findOne((node) => node.id === id);
 }
 
+// 프레임 데이터 추출 결과
+interface FrameDataResult {
+  frames: ExtractedFrame[];
+  images: ExtractedImageFile[];
+}
+
 // 프레임 데이터 추출 (비동기) - 전달받은 프레임 정보 기반으로 추출 (선택 변경에 영향받지 않음)
-async function extractFrameData(frameInfos: FrameRequestInfo[]): Promise<ExtractedFrame[]> {
+async function extractFrameData(
+  frameInfos: FrameRequestInfo[],
+  includeImages: boolean = false
+): Promise<FrameDataResult> {
   const results: ExtractedFrame[] = [];
+
+  // 이미지 카운터 초기화
+  imageCounter = 0;
+
+  // 이미지 수집 컨텍스트
+  const imageContext: ImageCollectionContext = {
+    includeImages,
+    images: [],
+  };
 
   for (const frameInfo of frameInfos) {
     const node = findNodeById(frameInfo.id);
@@ -414,7 +460,7 @@ async function extractFrameData(frameInfos: FrameRequestInfo[]): Promise<Extract
 
     if ('children' in frame) {
       for (const child of frame.children) {
-        const extracted = await extractNode(child, frameTexts);
+        const extracted = await extractNode(child, frameTexts, imageContext);
         if (extracted) {
           children.push(extracted);
         }
@@ -435,7 +481,10 @@ async function extractFrameData(frameInfos: FrameRequestInfo[]): Promise<Extract
     });
   }
 
-  return results;
+  return {
+    frames: results,
+    images: imageContext.images,
+  };
 }
 
 // UI 메시지 핸들러
@@ -444,11 +493,16 @@ figma.ui.onmessage = async (message: UIMessage) => {
     case 'request-frame-data':
       try {
         sendMessage({ type: 'extraction-started' } as PluginMessage);
-        const frameData = await extractFrameData(message.frames);
+        const includeImages = message.includeImages ?? false;
+        const { frames: frameData, images } = await extractFrameData(message.frames, includeImages);
         if (frameData.length === 0) {
           sendMessage({ type: 'no-selection' });
         } else {
-          sendMessage({ type: 'frame-data', frames: frameData });
+          sendMessage({
+            type: 'frame-data',
+            frames: frameData,
+            images: includeImages ? images : undefined,
+          });
         }
       } catch (error) {
         sendMessage({

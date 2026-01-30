@@ -9,8 +9,10 @@ import type {
 import { callLLM } from './llm-client';
 import {
   MARKDOWN_SYSTEM_PROMPT,
-  createMarkdownUserPrompt,
   SEQUENTIAL_SYSTEM_PROMPT,
+  createBatchSystemPrompt,
+  createSequentialSystemPrompt,
+  createMarkdownUserPrompt,
   createSequentialUserPrompt,
 } from '../prompts/markdown-conversion';
 
@@ -26,25 +28,23 @@ const REQUEST_DELAY_MS = 3000;
 // 4000자 정도로 설정 (한글 기준 약 2000~3000 토큰)
 const TRANSLATION_CHUNK_SIZE = 4000;
 
-// 이미지 데이터 구조
-interface ImageData {
+// 이미지 참조 정보
+interface ImageRefData {
   id: string;
-  name: string;
-  base64Data: string;
+  fileName: string;
 }
 
-// 단일 프레임에서 이미지 데이터 수집
-function collectImagesFromFrame(frame: ExtractedFrame): ImageData[] {
-  const images: ImageData[] = [];
+// 단일 프레임에서 이미지 참조 수집
+function collectImageRefsFromFrame(frame: ExtractedFrame): ImageRefData[] {
+  const images: ImageRefData[] = [];
 
   function collectImages(node: ExtractedNode) {
     if (node.type === 'image') {
       const imageNode = node as ExtractedImageNode;
-      if (imageNode.base64Data) {
+      if (imageNode.fileName) {
         images.push({
           id: imageNode.id,
-          name: imageNode.name,
-          base64Data: imageNode.base64Data,
+          fileName: imageNode.fileName,
         });
       }
     }
@@ -58,47 +58,22 @@ function collectImagesFromFrame(frame: ExtractedFrame): ImageData[] {
   return images;
 }
 
-// 모든 프레임에서 이미지 데이터 수집
-function collectAllImages(frames: ExtractedFrame[]): ImageData[] {
-  const images: ImageData[] = [];
-  frames.forEach((frame) => {
-    images.push(...collectImagesFromFrame(frame));
-  });
-  return images;
-}
-
-// IMAGE_REF:nodeId를 실제 base64 데이터로 치환
-function replaceImageReferences(markdown: string, images: ImageData[]): string {
+// IMAGE_REF:nodeId를 실제 파일 경로로 치환
+function replaceImageReferences(markdown: string, images: ImageRefData[]): string {
   let result = markdown;
 
-  // 1. ![설명](IMAGE_REF:nodeId) 패턴 매칭
+  // ![설명](IMAGE_REF:nodeId) 패턴 매칭 → 상대 경로로 치환
   result = result.replace(
     /!\[([^\]]*)\]\(IMAGE_REF:([^)]+)\)/g,
     (match, description, nodeId) => {
       const image = images.find((img) => img.id === nodeId);
       if (image) {
-        return `![${description}](${image.base64Data})`;
+        return `![${description}](${image.fileName})`;
       }
-      // base64 데이터가 없으면 텍스트로 대체
-      return `**[이미지: ${description}]**`;
+      // 이미지 파일이 없으면 그대로 유지 (나중에 매핑 가능)
+      return match;
     }
   );
-
-  // 2. **[이미지: 설명]** 패턴을 실제 이미지로 치환 (LLM이 잘못된 형식 출력 시 fallback)
-  if (images.length > 0) {
-    let imageIndex = 0;
-    result = result.replace(
-      /\*\*\[이미지:\s*([^\]]+)\]\*\*/g,
-      (match, description) => {
-        if (imageIndex < images.length) {
-          const image = images[imageIndex];
-          imageIndex++;
-          return `![${description.trim()}](${image.base64Data})`;
-        }
-        return match;
-      }
-    );
-  }
 
   return result;
 }
@@ -231,7 +206,12 @@ function splitBySize(text: string, maxSize: number): string[] {
 }
 
 // 노드 데이터 간소화 (position, size 제거, 텍스트와 구조만 유지)
-function simplifyNode(node: ExtractedNode): Record<string, unknown> {
+function simplifyNode(node: ExtractedNode, includeImages: boolean): Record<string, unknown> | null {
+  // 이미지 포함 안 할 때는 이미지 노드 제외
+  if (node.type === 'image' && !includeImages) {
+    return null;
+  }
+
   const simplified: Record<string, unknown> = {
     type: node.type,
     name: node.name,
@@ -245,15 +225,22 @@ function simplifyNode(node: ExtractedNode): Record<string, unknown> {
     if (textNode.fontWeight) simplified.fontWeight = textNode.fontWeight;
   }
 
-  // 이미지 노드: id 유지 (후처리에서 base64 치환용)
+  // 이미지 노드: id 유지 (후처리에서 파일 경로 치환용)
   if (node.type === 'image') {
     simplified.id = node.id;
-    simplified.hasBase64 = true; // base64 데이터가 있음을 표시
+    // fileName이 있으면 표시 (이미지 포함됨을 표시)
+    const imageNode = node as ExtractedImageNode;
+    if (imageNode.fileName) {
+      simplified.hasImage = true;
+    }
   }
 
   // 컨테이너 노드: 자식만 재귀적으로 간소화
   if ('children' in node && Array.isArray(node.children)) {
-    simplified.children = node.children.map(simplifyNode);
+    const simplifiedChildren = node.children
+      .map((child) => simplifyNode(child, includeImages))
+      .filter((child): child is Record<string, unknown> => child !== null);
+    simplified.children = simplifiedChildren;
   }
 
   // 레이아웃 모드 (구조 파악에 유용)
@@ -270,10 +257,14 @@ function simplifyNode(node: ExtractedNode): Record<string, unknown> {
 }
 
 // 프레임 데이터 간소화
-function simplifyFrameData(frame: ExtractedFrame): Record<string, unknown> {
+function simplifyFrameData(frame: ExtractedFrame, includeImages: boolean): Record<string, unknown> {
+  const simplifiedChildren = frame.children
+    .map((child) => simplifyNode(child, includeImages))
+    .filter((child): child is Record<string, unknown> => child !== null);
+
   return {
     name: frame.name,
-    children: frame.children.map(simplifyNode),
+    children: simplifiedChildren,
   };
 }
 
@@ -281,6 +272,7 @@ export interface ConversionOptions {
   config: LLMConfig;
   frames: ExtractedFrame[];
   translateTo: TranslationLanguage;
+  includeImages?: boolean; // 이미지 포함 여부
   customPrompt?: string; // 사용자 커스텀 프롬프트
   onProgress?: (status: string) => void;
   onRetryWait?: (remainingSeconds: number) => void;
@@ -335,17 +327,26 @@ export async function convertToMarkdown(
   return convertToMarkdownBatch(options);
 }
 
+// 모든 프레임에서 이미지 참조 수집
+function collectAllImageRefs(frames: ExtractedFrame[]): ImageRefData[] {
+  const images: ImageRefData[] = [];
+  for (const frame of frames) {
+    images.push(...collectImageRefsFromFrame(frame));
+  }
+  return images;
+}
+
 // 일괄 처리 (3개 이하 프레임)
 async function convertToMarkdownBatch(
   options: ConversionOptions
 ): Promise<ConversionResult> {
-  const { config, frames, translateTo, customPrompt, onProgress, onRetryWait } = options;
+  const { config, frames, translateTo, includeImages = false, customPrompt, onProgress, onRetryWait } = options;
 
-  // 커스텀 프롬프트가 있으면 사용, 없으면 기본 프롬프트
-  const systemPrompt = customPrompt || MARKDOWN_SYSTEM_PROMPT;
+  // 커스텀 프롬프트가 있으면 사용, 없으면 동적 생성
+  const systemPrompt = customPrompt || createBatchSystemPrompt(includeImages);
 
-  // 이미지 데이터 수집 (후처리용)
-  const images = collectAllImages(frames);
+  // 이미지 참조 데이터 수집 (후처리용, 이미지 포함 시에만)
+  const images = includeImages ? collectAllImageRefs(frames) : [];
 
   // 1단계: 프레임 데이터를 JSON으로 직렬화
   onProgress?.('프레임 데이터 분석 중...');
@@ -356,7 +357,7 @@ async function convertToMarkdownBatch(
   const markdownResponse = await callLLM(config, {
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: createMarkdownUserPrompt(frameDataJson) },
+      { role: 'user', content: createMarkdownUserPrompt(frameDataJson, includeImages) },
     ],
     maxTokens: 8192,
     temperature: 0.3,
@@ -368,8 +369,10 @@ async function convertToMarkdownBatch(
   // 후처리: Mermaid 코드 블록 닫기 수정
   markdown = fixUnclosedMermaidBlocks(markdown);
 
-  // 후처리: 이미지 참조를 실제 base64 데이터로 치환
-  markdown = replaceImageReferences(markdown, images);
+  // 후처리: 이미지 참조를 실제 파일 경로로 치환 (이미지 포함 시에만)
+  if (includeImages) {
+    markdown = replaceImageReferences(markdown, images);
+  }
 
   let totalUsage = markdownResponse.usage;
 
@@ -476,10 +479,10 @@ function parseSequentialResponse(response: string): { markdown: string; summary:
 async function convertToMarkdownSequential(
   options: ConversionOptions
 ): Promise<ConversionResult> {
-  const { config, frames, translateTo, customPrompt, onProgress, onRetryWait, onFrameProgress } = options;
+  const { config, frames, translateTo, includeImages = false, customPrompt, onProgress, onRetryWait, onFrameProgress } = options;
 
-  // 커스텀 프롬프트가 있으면 사용, 없으면 기본 순차 프롬프트
-  const systemPrompt = customPrompt || SEQUENTIAL_SYSTEM_PROMPT;
+  // 커스텀 프롬프트가 있으면 사용, 없으면 동적 생성
+  const systemPrompt = customPrompt || createSequentialSystemPrompt(includeImages);
 
   const results: FrameConversionResult[] = [];
   const failedFrames: Array<{ frameName: string; error: string }> = [];
@@ -489,8 +492,8 @@ async function convertToMarkdownSequential(
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i];
 
-    // 이 프레임의 이미지 수집 (프레임별 이미지 치환용)
-    const frameImages = collectImagesFromFrame(frame);
+    // 이 프레임의 이미지 참조 수집 (프레임별 이미지 치환용, 이미지 포함 시에만)
+    const frameImages = includeImages ? collectImageRefsFromFrame(frame) : [];
 
     // 진행률 콜백
     onFrameProgress?.({
@@ -503,7 +506,7 @@ async function convertToMarkdownSequential(
 
     try {
       // 프레임 데이터 간소화 및 직렬화 (토큰 절약)
-      const simplifiedFrame = simplifyFrameData(frame);
+      const simplifiedFrame = simplifyFrameData(frame, includeImages);
       const frameDataJson = JSON.stringify(simplifiedFrame, null, 2);
 
       // LLM 호출
@@ -517,7 +520,8 @@ async function convertToMarkdownSequential(
               frame.name,
               i,
               frames.length,
-              summaries
+              summaries,
+              includeImages
             ),
           },
         ],
@@ -538,8 +542,10 @@ async function convertToMarkdownSequential(
       // 응답 파싱
       let { markdown, summary } = parseSequentialResponse(response.content);
 
-      // 프레임별 이미지 치환 (병합 전에 각 프레임의 이미지로 치환)
-      markdown = replaceImageReferences(markdown, frameImages);
+      // 프레임별 이미지 치환 (병합 전에 각 프레임의 이미지로 치환, 이미지 포함 시에만)
+      if (includeImages) {
+        markdown = replaceImageReferences(markdown, frameImages);
+      }
 
       // 결과 저장
       results.push({

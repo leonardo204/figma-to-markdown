@@ -9,7 +9,7 @@ const codeConfig = {
   entryPoints: ['src/code.ts'],
   bundle: true,
   outfile: 'build/code.js',
-  target: 'es2020',
+  target: 'es2018', // Figma 플러그인 호환성을 위해 낮은 타겟 사용
   format: 'iife',
   sourcemap: false,
   minify: !isWatch,

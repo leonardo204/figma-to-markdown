@@ -1,16 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import JSZip from 'jszip';
 import type {
   LLMConfig,
   TranslationLanguage,
   SelectedFrameInfo,
   ExtractedFrame,
+  ExtractedImageFile,
   PluginMessage,
   SequentialProgress,
   FrameConversionResult,
 } from '../types';
 import { LANGUAGE_LABELS } from '../types';
 import { isConfigValid, loadCustomPrompt, saveCustomPrompt, clearCustomPrompt } from '../services/storage';
-import { convertToMarkdown, MARKDOWN_SYSTEM_PROMPT } from '../services/markdown-converter';
+import { convertToMarkdown, SEQUENTIAL_SYSTEM_PROMPT } from '../services/markdown-converter';
 import { MarkdownPreview } from './MarkdownPreview';
 
 interface ConversionPanelProps {
@@ -40,6 +42,11 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   const [frameResults, setFrameResults] = useState<FrameConversionResult[]>([]);
   const [showPreview, setShowPreview] = useState(false);
 
+  // 이미지 옵션
+  const [includeImages, setIncludeImages] = useState(false);
+  // 이미지 파일 데이터 (ZIP 다운로드용)
+  const imageFilesRef = useRef<ExtractedImageFile[]>([]);
+
   // 프롬프트 편집 관련 상태
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [customPrompt, setCustomPrompt] = useState<string>('');
@@ -53,7 +60,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
         setCustomPrompt(saved);
         setIsCustomPromptModified(true);
       } else {
-        setCustomPrompt(MARKDOWN_SYSTEM_PROMPT);
+        setCustomPrompt(SEQUENTIAL_SYSTEM_PROMPT);
       }
     });
   }, []);
@@ -84,6 +91,8 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
           setProgress('Figma 데이터 추출 중...');
           break;
         case 'frame-data':
+          // 이미지 파일 저장 (ZIP 다운로드용)
+          imageFilesRef.current = message.images || [];
           handleFrameData(message.frames);
           break;
         case 'error':
@@ -110,6 +119,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
         config,
         frames,
         translateTo,
+        includeImages,
         customPrompt: isCustomPromptModified ? customPrompt : undefined,
         onProgress: (msg) => {
           setProgress(msg);
@@ -143,7 +153,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
       setFrameProgress(null);
       setStatus('error');
     }
-  }, [config, translateTo, customPrompt, isCustomPromptModified]);
+  }, [config, translateTo, includeImages, customPrompt, isCustomPromptModified]);
 
   // 변환 시작
   const handleConvert = () => {
@@ -170,7 +180,13 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
 
     // 프레임 데이터 요청 (선택된 프레임 정보 전달 - 변환 중 선택 변경 방지)
     const frames = selectedFrames.map((f) => ({ id: f.id, layerName: f.layerName }));
-    parent.postMessage({ pluginMessage: { type: 'request-frame-data', frames } }, '*');
+    parent.postMessage({
+      pluginMessage: {
+        type: 'request-frame-data',
+        frames,
+        includeImages,
+      },
+    }, '*');
   };
 
   // 클립보드 복사 (fallback 방식)
@@ -217,20 +233,52 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
     setCopyFailed(true);
   };
 
-  // Markdown 파일 다운로드
-  const handleDownload = () => {
+  // Markdown 파일 다운로드 (이미지 포함 시 ZIP, 아니면 MD)
+  const handleDownload = async () => {
     if (!result) return;
 
     try {
-      const blob = new Blob([result], { type: 'text/markdown;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `figma-export-${Date.now()}.md`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const timestamp = Date.now();
+
+      // 이미지 포함 시 ZIP 다운로드
+      if (includeImages && imageFilesRef.current.length > 0) {
+        const zip = new JSZip();
+
+        // Markdown 파일 추가
+        zip.file('document.md', result);
+
+        // 이미지 폴더에 이미지 추가
+        const imagesFolder = zip.folder('images');
+        if (imagesFolder) {
+          for (const img of imageFilesRef.current) {
+            // fileName: "images/img-001.png" → "img-001.png"
+            const fileName = img.fileName.replace('images/', '');
+            imagesFolder.file(fileName, img.bytes);
+          }
+        }
+
+        // ZIP 생성 및 다운로드
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `figma-export-${timestamp}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        // 이미지 미포함: MD만 다운로드
+        const blob = new Blob([result], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `figma-export-${timestamp}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
     } catch {
       setError('다운로드에 실패했습니다.');
     }
@@ -242,14 +290,14 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   // 프롬프트 저장
   const handleSavePrompt = async () => {
     await saveCustomPrompt(customPrompt);
-    setIsCustomPromptModified(customPrompt !== MARKDOWN_SYSTEM_PROMPT);
+    setIsCustomPromptModified(customPrompt !== SEQUENTIAL_SYSTEM_PROMPT);
     setPromptSaved(true);
     setTimeout(() => setPromptSaved(false), 2000);
   };
 
   // 프롬프트 기본값으로 초기화
   const handleResetPrompt = async () => {
-    setCustomPrompt(MARKDOWN_SYSTEM_PROMPT);
+    setCustomPrompt(SEQUENTIAL_SYSTEM_PROMPT);
     setIsCustomPromptModified(false);
     await clearCustomPrompt();
   };
@@ -258,7 +306,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   const handlePromptChange = (value: string) => {
     setCustomPrompt(value);
     // 기본값과 다르면 수정된 것으로 표시
-    setIsCustomPromptModified(value !== MARKDOWN_SYSTEM_PROMPT);
+    setIsCustomPromptModified(value !== SEQUENTIAL_SYSTEM_PROMPT);
   };
 
   // 미리보기 열기
@@ -351,6 +399,23 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
             ))}
           </select>
           <div className="hint-text">LLM을 통해 변환된 문서를 번역합니다</div>
+        </div>
+
+        {/* 이미지 옵션 */}
+        <div className="form-group">
+          <label className="form-checkbox">
+            <input
+              type="checkbox"
+              checked={includeImages}
+              onChange={(e) => setIncludeImages(e.target.checked)}
+              disabled={isConverting}
+            />
+            <span>이미지 포함</span>
+          </label>
+          <div className="hint-text">
+            체크하면 이미지를 추출하여 저장 시 ZIP 파일로 제공합니다.
+            (Markdown + images 폴더)
+          </div>
         </div>
 
         {/* 고급 설정 (접이식) */}
