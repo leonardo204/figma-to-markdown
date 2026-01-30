@@ -139,6 +139,31 @@ function fixUnclosedMermaidBlocks(markdown: string): string {
   return result.join('\n');
 }
 
+// Mermaid 링크 레이블에서 괄호 제거 (파싱 오류 방지)
+// 예: A -->|입력 없음 (7초)| B → A -->|입력 없음 7초| B
+function fixMermaidLinkLabels(markdown: string): string {
+  // mermaid 코드 블록 내에서만 처리
+  return markdown.replace(/```mermaid[\s\S]*?```/g, (mermaidBlock) => {
+    // 링크 레이블 패턴: |...|
+    // 레이블 내의 괄호만 제거하고 내용은 유지
+    return mermaidBlock.replace(/\|([^|]*)\|/g, (match, label) => {
+      // 괄호만 제거하고 내용은 유지: (7초) → 7초
+      const fixedLabel = label
+        .replace(/\(([^)]*)\)/g, '$1') // (내용) → 내용
+        .replace(/\s+/g, ' ') // 연속 공백 제거
+        .trim();
+      return `|${fixedLabel}|`;
+    });
+  });
+}
+
+// Mermaid 코드 블록 후처리 (닫힘 수정 + 문법 수정)
+function fixMermaidBlocks(markdown: string): string {
+  let result = fixUnclosedMermaidBlocks(markdown);
+  result = fixMermaidLinkLabels(result);
+  return result;
+}
+
 // 딜레이 함수
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -396,7 +421,7 @@ async function convertToMarkdownBatch(
   let markdown = stripCodeBlockWrapper(markdownResponse.content);
 
   // 후처리: Mermaid 코드 블록 닫기 수정
-  markdown = fixUnclosedMermaidBlocks(markdown);
+  markdown = fixMermaidBlocks(markdown);
 
   // 후처리: 이미지 참조를 실제 파일 경로로 치환 (이미지 포함 시에만)
   if (includeImages) {
@@ -480,7 +505,7 @@ async function convertToMarkdownBatch(
     markdown = regenerateTableOfContents(markdown);
 
     // 번역 후 mermaid 블록 수정 (번역 과정에서 코드 블록이 손상될 수 있음)
-    markdown = fixUnclosedMermaidBlocks(markdown);
+    markdown = fixMermaidBlocks(markdown);
   }
 
   onProgress?.('완료!');
@@ -578,7 +603,7 @@ async function convertToMarkdownSequential(
       let { markdown, summary } = parseSequentialResponse(response.content);
 
       // 프레임별 mermaid 블록 수정 (병합 전에 각 프레임의 코드 블록 정리)
-      markdown = fixUnclosedMermaidBlocks(markdown);
+      markdown = fixMermaidBlocks(markdown);
 
       // 프레임별 이미지 치환 (병합 전에 각 프레임의 이미지로 치환, 이미지 포함 시에만)
       if (includeImages) {
@@ -633,7 +658,7 @@ async function convertToMarkdownSequential(
   });
 
   // 후처리: Mermaid 코드 블록 닫기 수정
-  markdown = fixUnclosedMermaidBlocks(markdown);
+  markdown = fixMermaidBlocks(markdown);
 
   // 목차 재생성 (병합 후 실제 헤딩 기반으로 일관성 보장)
   markdown = regenerateTableOfContents(markdown);
@@ -738,7 +763,7 @@ async function convertToMarkdownSequential(
     markdown = regenerateTableOfContents(markdown);
 
     // 번역 후 mermaid 블록 수정 (번역 과정에서 코드 블록이 손상될 수 있음)
-    markdown = fixUnclosedMermaidBlocks(markdown);
+    markdown = fixMermaidBlocks(markdown);
   }
 
   onProgress?.('완료!');

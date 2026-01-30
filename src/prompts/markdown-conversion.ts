@@ -12,20 +12,37 @@ const BASE_CONVERSION_RULES = `## 변환 규칙
 - HORIZONTAL 레이아웃 → 옆으로 나열된 항목 (리스트 또는 테이블)
 - 반복되는 구조 → Markdown 리스트 또는 테이블로 변환
 
-### 3. 다이어그램 변환 (Mermaid)
-- 화살표/연결선이 있는 흐름 → flowchart 다이어그램
-- 단계별 프로세스 → flowchart TD (위→아래) 또는 LR (왼→오른)
-- 사용자 인터랙션 흐름 → sequenceDiagram
+### 3. 다이어그램 변환 (Mermaid) - 매우 중요
+**플로우/시퀀스가 있으면 반드시 Mermaid 다이어그램으로 변환해야 합니다.**
+
+**플로우 패턴 인식 기준:**
+- shape 노드 중 "arrow", "line" 타입이 있음 → 플로우 다이어그램 필요
+- 여러 프레임/박스가 화살표로 연결됨 → 상태 전환 다이어그램
+- "State", "상태", "Flow", "흐름", "단계" 등의 단어가 포함된 섹션
+- 숫자로 순서가 매겨진 단계들 (1→2→3)
+- "시작 → 처리 → 완료" 같은 프로세스 설명
+
+**다이어그램 유형 선택:**
+- 상태 전환 (State A → State B → State C): flowchart TD 또는 LR
+- 순차적 프로세스: flowchart TD (위→아래)
+- 사용자-시스템 인터랙션: sequenceDiagram
+- 분기가 있는 흐름: flowchart with 조건 분기
+
+**필수: 텍스트로만 설명하지 말고, 시각적 흐름은 반드시 Mermaid로 표현하세요.**
 
 ### 4. Mermaid 문법 (매우 중요)
 - **코드 블록 완성 필수**: \`\`\`mermaid로 시작하면 반드시 \`\`\`로 닫아야 함
-- 노드 텍스트에 특수문자가 있으면 큰따옴표로 감싸기: A["텍스트 (설명)"]
+- 노드 텍스트에 특수문자가 있으면 큰따옴표로 감싸기: A["텍스트"]
 - 한글 텍스트도 큰따옴표로 감싸는 것이 안전
+- **링크 레이블에서 괄호 금지**: |레이블| 안에 괄호()를 사용하면 파싱 오류 발생
+  - 잘못된 예: A -->|입력 없음 (7초)| B (파싱 오류!)
+  - 올바른 예: A -->|입력 없음 7초| B 또는 A -->|7초 후 입력 없음| B
 
 **올바른 예시:**
 \`\`\`mermaid
 flowchart TD
-    A["시작"] --> B["끝"]
+    A["시작"] -->|조건| B["처리"]
+    B -->|완료 후 3초| C["끝"]
 \`\`\``;
 
 // 이미지 포함 시 추가되는 규칙
@@ -130,7 +147,7 @@ ${frameDataJson}
 
 위 데이터를 분석하여:
 1. 텍스트 계층 구조를 파악하고 적절한 헤딩 레벨 적용
-2. 화면 흐름이나 프로세스가 있다면 Mermaid 다이어그램으로 표현
+2. **중요**: shape 노드 중 "arrow", "line"이 있거나, 여러 상태/단계가 연결된 구조가 있으면 반드시 Mermaid flowchart로 표현
 3. 리스트나 테이블 형태의 데이터는 해당 Markdown 문법으로 변환${imageInstruction ? '\n' + imageInstruction : ''}
 
 Markdown 문서를 생성해주세요:`;
@@ -160,6 +177,13 @@ export function createSequentialUserPrompt(
 
   prompt += `### 현재 프레임 데이터\n`;
   prompt += `\`\`\`json\n${frameDataJson}\n\`\`\`\n\n`;
+
+  prompt += `**분석 지시:**
+1. shape 노드 중 "arrow", "line"이 있으면 → 반드시 Mermaid flowchart로 상태 전환 다이어그램 생성
+2. 여러 상태/단계가 연결된 구조가 보이면 → flowchart TD 또는 LR로 시각화
+3. 텍스트로만 설명하지 말고, 시각적 흐름은 Mermaid로 표현
+
+`;
 
   if (includeImages) {
     prompt += `위 데이터를 분석하여 Markdown을 생성하세요. 이미지는 IMAGE_REF 형식으로 포함하고, 마지막에 요약을 작성하세요.`;
