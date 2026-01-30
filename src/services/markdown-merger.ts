@@ -172,14 +172,34 @@ function fixUnclosedCodeBlocks(markdown: string): string {
       continue;
     }
 
-    // 다음 코드 블록 시작 전에 현재 블록이 닫히지 않은 경우
-    if (trimmed.startsWith('```') && inCodeBlock) {
-      // 이전 코드 블록 닫기
-      result.push('```');
-      inCodeBlock = true;
-      codeBlockLang = trimmed.slice(3).trim();
-      result.push(line);
-      continue;
+    // 코드 블록 안에서 블록을 끝내야 하는 패턴 감지
+    if (inCodeBlock) {
+      // 다음 코드 블록 시작 전에 현재 블록이 닫히지 않은 경우
+      if (trimmed.startsWith('```')) {
+        result.push('```');
+        inCodeBlock = true;
+        codeBlockLang = trimmed.slice(3).trim();
+        result.push(line);
+        continue;
+      }
+
+      // ## 또는 # 헤더
+      if (/^#{1,6}\s+/.test(trimmed)) {
+        result.push('```');
+        inCodeBlock = false;
+        codeBlockLang = '';
+        result.push(line);
+        continue;
+      }
+
+      // --- 또는 *** 구분선 (markdown horizontal rule)
+      if (/^[-*_]{3,}$/.test(trimmed)) {
+        result.push('```');
+        inCodeBlock = false;
+        codeBlockLang = '';
+        result.push(line);
+        continue;
+      }
     }
 
     result.push(line);

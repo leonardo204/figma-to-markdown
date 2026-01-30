@@ -78,36 +78,65 @@ function replaceImageReferences(markdown: string, images: ImageRefData[]): strin
   return result;
 }
 
-// 닫히지 않은 Mermaid 코드 블록 수정
+// 닫히지 않은 Mermaid 코드 블록 수정 (라인 단위 처리)
 function fixUnclosedMermaidBlocks(markdown: string): string {
-  // mermaid 코드 블록 찾기
-  const mermaidPattern = /```mermaid\s*([\s\S]*?)(?:```|$)/g;
-  let result = markdown;
-  let lastIndex = 0;
-  const parts: string[] = [];
+  const lines = markdown.split('\n');
+  const result: string[] = [];
+  let inMermaidBlock = false;
 
-  let match;
-  while ((match = mermaidPattern.exec(markdown)) !== null) {
-    // 이전 부분 추가
-    parts.push(markdown.slice(lastIndex, match.index));
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
 
-    const fullMatch = match[0];
-    const content = match[1];
-
-    // 닫는 ``` 가 없는 경우 추가
-    if (!fullMatch.endsWith('```')) {
-      parts.push('```mermaid\n' + content.trim() + '\n```');
-    } else {
-      parts.push(fullMatch);
+    // mermaid 코드 블록 시작 감지
+    if (trimmed.startsWith('```mermaid') && !inMermaidBlock) {
+      inMermaidBlock = true;
+      result.push(line);
+      continue;
     }
 
-    lastIndex = match.index + fullMatch.length;
+    // 코드 블록 종료 감지 (정확히 ```)
+    if (trimmed === '```' && inMermaidBlock) {
+      inMermaidBlock = false;
+      result.push(line);
+      continue;
+    }
+
+    // mermaid 블록 안에서 블록을 끝내야 하는 패턴 감지
+    if (inMermaidBlock) {
+      // ## 또는 # 헤더
+      if (/^#{1,6}\s+/.test(trimmed)) {
+        result.push('```');
+        inMermaidBlock = false;
+        result.push(line);
+        continue;
+      }
+
+      // --- 또는 *** 구분선 (markdown horizontal rule)
+      if (/^[-*_]{3,}$/.test(trimmed)) {
+        result.push('```');
+        inMermaidBlock = false;
+        result.push(line);
+        continue;
+      }
+
+      // 다른 코드 블록 시작
+      if (trimmed.startsWith('```') && !trimmed.startsWith('```mermaid')) {
+        result.push('```');
+        inMermaidBlock = false;
+        // 새 코드 블록은 추가하지 않음 (다음 반복에서 처리)
+      }
+    }
+
+    result.push(line);
   }
 
-  // 나머지 부분 추가
-  parts.push(markdown.slice(lastIndex));
+  // 파일 끝에 닫히지 않은 블록이 있으면 닫기
+  if (inMermaidBlock) {
+    result.push('```');
+  }
 
-  return parts.join('');
+  return result.join('\n');
 }
 
 // 딜레이 함수
@@ -374,6 +403,9 @@ async function convertToMarkdownBatch(
     markdown = replaceImageReferences(markdown, images);
   }
 
+  // 목차 재생성 (실제 헤딩 기반으로 일관성 보장)
+  markdown = regenerateTableOfContents(markdown);
+
   let totalUsage = markdownResponse.usage;
 
   // 3단계: 번역 (필요한 경우) - chunk 처리로 큰 문서도 번역 가능
@@ -446,6 +478,9 @@ async function convertToMarkdownBatch(
 
     // 번역 후 목차 재생성 (chunk별 번역으로 인한 제목 불일치 해결)
     markdown = regenerateTableOfContents(markdown);
+
+    // 번역 후 mermaid 블록 수정 (번역 과정에서 코드 블록이 손상될 수 있음)
+    markdown = fixUnclosedMermaidBlocks(markdown);
   }
 
   onProgress?.('완료!');
@@ -542,6 +577,9 @@ async function convertToMarkdownSequential(
       // 응답 파싱
       let { markdown, summary } = parseSequentialResponse(response.content);
 
+      // 프레임별 mermaid 블록 수정 (병합 전에 각 프레임의 코드 블록 정리)
+      markdown = fixUnclosedMermaidBlocks(markdown);
+
       // 프레임별 이미지 치환 (병합 전에 각 프레임의 이미지로 치환, 이미지 포함 시에만)
       if (includeImages) {
         markdown = replaceImageReferences(markdown, frameImages);
@@ -596,6 +634,9 @@ async function convertToMarkdownSequential(
 
   // 후처리: Mermaid 코드 블록 닫기 수정
   markdown = fixUnclosedMermaidBlocks(markdown);
+
+  // 목차 재생성 (병합 후 실제 헤딩 기반으로 일관성 보장)
+  markdown = regenerateTableOfContents(markdown);
 
   // 이미지는 이미 프레임별로 치환되었으므로 전역 치환 불필요
 
@@ -695,6 +736,9 @@ async function convertToMarkdownSequential(
 
     // 번역 후 목차 재생성 (chunk별 번역으로 인한 제목 불일치 해결)
     markdown = regenerateTableOfContents(markdown);
+
+    // 번역 후 mermaid 블록 수정 (번역 과정에서 코드 블록이 손상될 수 있음)
+    markdown = fixUnclosedMermaidBlocks(markdown);
   }
 
   onProgress?.('완료!');
