@@ -6,3 +6,13 @@ build/
 # 테스트/임시 파일
 p*.png
 figma-export-*.md
+
+# Claude Code runtime
+.claude/db/context.db
+.claude/.ctx_state
+.claude/.backup-*
+.claude/.ralph_state
+.claude/.hud_cache
+.claude/.hook_feedback
+.claude/.project_root
+.claude/.messenger_enabled
