@@ -165,7 +165,8 @@ async function callAzureOpenAI(
   config: Extract<LLMConfig, { provider: 'azure-openai' }>,
   options: RequestOptions
 ): Promise<LLMResponse> {
-  const url = `${config.endpoint}/openai/deployments/${config.deploymentName}/chat/completions?api-version=${config.apiVersion}`;
+  const endpoint = config.endpoint.replace(/\/+$/, '');
+  const url = `${endpoint}/openai/deployments/${config.deploymentName}/chat/completions?api-version=${config.apiVersion}`;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -319,7 +320,7 @@ async function callOllama(
   config: Extract<LLMConfig, { provider: 'ollama' }>,
   options: RequestOptions
 ): Promise<LLMResponse> {
-  const url = `${config.endpoint}/api/chat`;
+  const url = `${config.endpoint.replace(/\/+$/, '')}/api/chat`;
 
   const response = await fetch(url, {
     method: 'POST',
