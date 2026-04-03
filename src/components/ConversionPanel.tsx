@@ -35,6 +35,7 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
   const [tokenUsage, setTokenUsage] = useState<{
     promptTokens: number;
     completionTokens: number;
+    reasoningTokens?: number;
     totalTokens: number;
   } | null>(null);
   const [frameProgress, setFrameProgress] = useState<SequentialProgress | null>(null);
@@ -594,6 +595,12 @@ export function ConversionPanel({ config, onSwitchToSettings }: ConversionPanelP
                 <div className="token-label">출력</div>
                 <div className="token-value">{tokenUsage.completionTokens.toLocaleString()}</div>
               </div>
+              {tokenUsage.reasoningTokens != null && tokenUsage.reasoningTokens > 0 && (
+                <div className="token-item">
+                  <div className="token-label">추론</div>
+                  <div className="token-value">{tokenUsage.reasoningTokens.toLocaleString()}</div>
+                </div>
+              )}
               <div className="token-item">
                 <div className="token-label">총 토큰</div>
                 <div className="token-value">{tokenUsage.totalTokens.toLocaleString()}</div>

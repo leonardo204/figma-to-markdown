@@ -46,6 +46,12 @@ function parseRetryAfter(errorMessage: string): number {
   return 60;
 }
 
+// Reasoning 모델 감지 (GPT-5, o1, o3 등)
+function isReasoningModel(modelName: string): boolean {
+  const name = modelName.toLowerCase();
+  return /^(gpt-5|o[1-9])/.test(name);
+}
+
 // 대기 함수 (카운트다운 콜백 지원)
 async function waitWithCountdown(
   seconds: number,
@@ -69,12 +75,20 @@ async function callOpenAI(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${config.apiKey}`,
     },
-    body: JSON.stringify({
-      model: config.modelName,
-      messages: options.messages,
-      max_tokens: options.maxTokens || 4096,
-      temperature: options.temperature ?? 0.7,
-    }),
+    body: JSON.stringify(
+      isReasoningModel(config.modelName)
+        ? {
+            model: config.modelName,
+            messages: options.messages,
+            max_completion_tokens: options.maxTokens || 4096,
+          }
+        : {
+            model: config.modelName,
+            messages: options.messages,
+            max_tokens: options.maxTokens || 4096,
+            temperature: options.temperature ?? 0.7,
+          }
+    ),
   });
 
   if (!response.ok) {
@@ -91,6 +105,7 @@ async function callOpenAI(
       ? {
           promptTokens: data.usage.prompt_tokens,
           completionTokens: data.usage.completion_tokens,
+          reasoningTokens: data.usage.completion_tokens_details?.reasoning_tokens,
           totalTokens: data.usage.total_tokens,
         }
       : undefined,
@@ -158,11 +173,18 @@ async function callAzureOpenAI(
       'Content-Type': 'application/json',
       'api-key': config.apiKey,
     },
-    body: JSON.stringify({
-      messages: options.messages,
-      max_tokens: options.maxTokens || 4096,
-      temperature: options.temperature ?? 0.7,
-    }),
+    body: JSON.stringify(
+      isReasoningModel(config.deploymentName)
+        ? {
+            messages: options.messages,
+            max_completion_tokens: options.maxTokens || 4096,
+          }
+        : {
+            messages: options.messages,
+            max_tokens: options.maxTokens || 4096,
+            temperature: options.temperature ?? 0.7,
+          }
+    ),
   });
 
   if (!response.ok) {
@@ -191,6 +213,7 @@ async function callAzureOpenAI(
       ? {
           promptTokens: data.usage.prompt_tokens,
           completionTokens: data.usage.completion_tokens,
+          reasoningTokens: data.usage.completion_tokens_details?.reasoning_tokens,
           totalTokens: data.usage.total_tokens,
         }
       : undefined,
@@ -385,6 +408,7 @@ export async function testConnection(
   config: LLMConfig
 ): Promise<ConnectionTestResult> {
   try {
+    const modelName = config.provider === 'azure-openai' ? config.deploymentName : 'modelName' in config ? config.modelName : '';
     await callLLM(config, {
       messages: [
         {
@@ -392,7 +416,7 @@ export async function testConnection(
           content: 'Hello, please respond with "Connection successful!"',
         },
       ],
-      maxTokens: 50,
+      maxTokens: isReasoningModel(modelName) ? 500 : 50,
     }, 1); // 테스트는 재시도 없이
 
     return {

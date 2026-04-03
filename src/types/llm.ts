@@ -5,7 +5,7 @@ export type LLMProvider = 'openai' | 'claude' | 'azure-openai' | 'gemini' | 'gro
 export interface OpenAIConfig {
   provider: 'openai';
   apiKey: string;
-  modelName: string; // gpt-4o, gpt-4-turbo, gpt-3.5-turbo 등
+  modelName: string; // gpt-4o, gpt-4-turbo, gpt-5, o1, o3 등
 }
 
 export interface ClaudeConfig {
@@ -48,6 +48,7 @@ export interface LLMResponse {
   usage?: {
     promptTokens: number;
     completionTokens: number;
+    reasoningTokens?: number;
     totalTokens: number;
   };
 }
